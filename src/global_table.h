@@ -6,19 +6,6 @@
 #include <librealsense2/rsutil.h>
 #include <math.h>
 
-// Types for Mesh
-typedef CGAL::Exact_predicates_inexact_constructions_kernel Kernel;
-typedef Kernel::FT FT;
-typedef Kernel::Point_3 Point;
-typedef CGAL::Point_with_normal_3<Kernel> Point_with_normal;
-typedef Kernel::Sphere_3 Sphere;
-typedef std::vector<Point_with_normal> PointList;
-typedef CGAL::Polyhedron_3<Kernel> Polyhedron;
-typedef CGAL::Poisson_reconstruction_function<Kernel> Poisson_reconstruction_function;
-typedef CGAL::Surface_mesh_default_triangulation_3 STr;
-typedef CGAL::Surface_mesh_complex_2_in_triangulation_3<STr> C2t3;
-typedef CGAL::Implicit_surface_3<Kernel, Poisson_reconstruction_function> Surface_3;
-
 struct UserData : public AppBase {
 	UserData() {}
 	//////전역변수 대신 이곳에 변수를 선언한다.
