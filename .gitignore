@@ -264,3 +264,4 @@ vs15/3rdparty/
 bin/
 VSTemp/
 vs15/.vs/
+shape_predictor_68_face_landmarks.dat
