@@ -12,64 +12,35 @@ struct App : public UserData {
 		this->height = height;
 
 		Init_OpenGL(width, height);
+		Init_ImGui();
 		Init_RealSense();
 		Init_Trackball(width, height);
-		Init_OpenCV();
+		Init_dlib();
 	}
 
 	void update(float time_elapsed) override {
 		Update_RealSense();
-		Update_OpenCV();
+		Update_ImGui();
+		Update_dlib();
 
-		if (isDetect) { //얼굴을 찾았으면
-			float tw = (float)face.width / (float)realsense_tex.width;
-			float th = (float)face.height / (float)realsense_tex.height;
 
-			//texture좌표 4개점
-			glm::vec2 lu = { (float)face.x / (float)realsense_tex.width, (float)face.y / (float)realsense_tex.height };
-			glm::vec2 ll = { lu.x, lu.y + th };
-			glm::vec2 ru = { lu.x + tw, lu.y };
-			glm::vec2 rl = { lu.x + tw, lu.y + th };
-
-			//위의 texture좌표를 OpenGL좌표로 변환
-			glm::vec3 olu = { 2 * (lu.x - 0.5), -2 * (lu.y - 0.5), 0.f };
-			glm::vec3 oll = { 2 * (ll.x - 0.5), -2 * (ll.y - 0.5), 0.f };
-			glm::vec3 oru = { 2 * (ru.x - 0.5), -2 * (ru.y - 0.5), 0.f };
-			glm::vec3 orl = { 2 * (rl.x - 0.5), -2 * (rl.y - 0.5), 0.f };
-
-			glm::vec3 facetv[8] = {
-				olu, oll, 
-				oll, orl,
-				orl, oru,
-				oru, olu
-			};
-
-			VertexBufferData(VAO_face_boundary, VBO_POS, std::size(facetv), sizeof(glm::vec3), facetv, GL_STREAM_DRAW);
-			
-
-			//OpenCV에서 얼굴을 사각형으로 찾아줬다
-			//찾아준 사각형 안의 2D좌표들을 3D좌표로 deprojection한다
+		if(isDetect){
 			face_inlier.clear();
 			int dw = static_cast<rs2::depth_frame>(depth).get_width();
 			int dh = static_cast<rs2::depth_frame>(depth).get_height();
 			int cw = static_cast<rs2::video_frame>(color).get_width();
 			int ch = static_cast<rs2::video_frame>(color).get_height();
 
-			int featureUnit = 1;
-			for (int y_coordinate = face.y; y_coordinate < face.y + face.height; y_coordinate += featureUnit) {
-				for (int x_coordinate = face.x; x_coordinate < face.x + face.width; x_coordinate += featureUnit) {
-					float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(x_coordinate * dw/cw, y_coordinate * dh/ch);
-					float tp[3] = { 0.f, 0.f, 0.f };
-					const float pix[2] = { x_coordinate, y_coordinate };
-					rs2_deproject_pixel_to_point(tp, &realsense_intrinsics, pix, pixel_distance_in_meters);
-					glm::vec3 temp = { tp[0], tp[1], tp[2] };
-					face_inlier.emplace_back(temp);
-				}
+			for (int i = 0; i < face_features.size(); i++) {
+				float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features[i].x * dw / cw, face_features[i].y * dh / ch);
+				float tp[3] = { 0.f, 0.f, 0.f };
+				const float pix[2] = { face_features[i].x, face_features[i].y };
+				rs2_deproject_pixel_to_point(tp, &realsense_intrinsics, pix, pixel_distance_in_meters);
+				glm::vec3 temp = { tp[0], tp[1], tp[2] };
+				face_inlier.emplace_back(temp);
 			}
+			VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
 
-			filterFace();
-			//VertexBufferData(VAO_test, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
-			VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier_filtered.size(), sizeof(glm::vec3), face_inlier_filtered.data(), GL_STREAM_DRAW);
 		}
 
 		trackball.update(time_elapsed);
@@ -78,7 +49,9 @@ struct App : public UserData {
 	}
 
 	void render(float time_elapsed) override {
-		glClearColor(1.f, 1.f, 1.f, 1.f);
+		//glClearColor(1.f, 1.f, 1.f, 1.f);
+		glClearColor(0.f, 0.f, 0.f, 1.f);
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		if (showFace) {
@@ -86,10 +59,11 @@ struct App : public UserData {
 		}
 		else {
 			if (!isColor) {
+				
+				render_pointcloud();
 				if (isDetect) {
 					render_face_pointcloud();
 				}
-				render_pointcloud();
 			}
 			else {
 				if (isDetect) { //찾은 얼굴이 있으면
@@ -98,6 +72,8 @@ struct App : public UserData {
 				render_color();
 			}
 		}
+
+		render_ImGui();
 	}
 
 	// 이 함수는 상속받은 함수가 아니며 새로 추가된 함수이므로 override를 붙이지 않는다.
@@ -148,14 +124,14 @@ struct App : public UserData {
 		glBindVertexArray(VAO_face_boundary);
 
 		Uniform1f(program_face_boundary, "aspectRatio", aspectRatio);
-		glDrawArrays(GL_LINES, 0, VAO_face_boundary.count);
+		glDrawArrays(GL_POINTS, 0, VAO_face_boundary.count);
 
 		glBindVertexArray(0);
 		glUseProgram(0);
 	}
 
 	void render_face_pointcloud() {
-		glPointSize(1.f);
+		glPointSize(3.f);
 		glBindVertexArray(0);
 		glUseProgram(0);
 
@@ -165,14 +141,22 @@ struct App : public UserData {
 		UniformMatrix4fv(program_face_pointcloud, "MVP", 1, GL_FALSE, &VP[0][0]);
 		glDrawArrays(GL_POINTS, 0, VAO_face_pointcloud.count);
 
+		glBindTexture(GL_TEXTURE_2D, 0);
 		glBindVertexArray(0);
 		glUseProgram(0);
 		glPointSize(3.f);
 	}
 
+	void render_ImGui() {
+		// Rendering
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	}
+
 	void cleanup() override {
 		Cleanup_RealSense();
 		Cleanup_OpenGL();
+		Cleanup_ImGui();
 	}
 
 	void onWindowSize(GLFWwindow* window, int width, int height) override {
@@ -283,8 +267,11 @@ struct App : public UserData {
 	}
 };
 
+
+
 int main(int argc, const char** argv)
 {
+
 	App app;
 	
 	try {
@@ -297,7 +284,7 @@ int main(int argc, const char** argv)
 	catch (std::exception& e) {
 		fprintf(stderr, "%s\n", e.what());
 	}
-
+	
 	return 0;
 }
 

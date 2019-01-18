@@ -5,6 +5,9 @@
 #include <librealsense2/rs.hpp>
 #include <librealsense2/rsutil.h>
 #include <math.h>
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
 struct UserData : public AppBase {
 	UserData() {}
@@ -14,11 +17,13 @@ struct UserData : public AppBase {
 	float aspectRatio;
 	glm::mat4 VP;
 	glm::mat4 T;
+	bool isDetect = false;
 	bool isColor = false;
 	bool showFace = false;
 	std::vector<glm::vec3> face_inlier;
 	std::vector<glm::vec3> face_inlier_filtered;
-
+	std::vector<glm::vec2> face_features;
+	
 
 	// OpenGL Objects
 	Program program_pointcloud;
@@ -52,32 +57,29 @@ struct UserData : public AppBase {
 	std::vector<glm::vec2> depth_texcoords;
 	std::vector<ubyte3> depth_colors;
 
-	// OpenCV
-	std::string cascadeName;
-	std::string nestedCascadeName;
-	cv::VideoCapture capture;
-	cv::Mat frame, image;
-	std::string inputName;
-	bool tryflip;
-	cv::CascadeClassifier cascade, nestedCascade;
-	double scale;
-	bool isDetect = false;
-	cv::Rect face;
+	//ImGui
+	bool show_another_window = true;
+	
+	//dlib
+	dlib::frontal_face_detector detector;
+	dlib::shape_predictor sp;
 
 	//////보조로 사용될 함수도 이곳에 선언한다.
 	void Init_OpenGL(int width, int height);
+	void Init_ImGui();
 	void Init_RealSense();
 	void Init_Trackball(int width, int height);
-	void Init_OpenCV();
+	void Init_dlib();
 
 	void Update_RealSense();
-	void Update_OpenCV();
+	void Update_ImGui();
+	void Update_dlib();
 
 	void Cleanup_OpenGL();
 	void Cleanup_RealSense();
+	void Cleanup_ImGui();
 
-	//OpenCV Haar-cascade face detection
-	void detectFace(cv::Mat& img, cv::CascadeClassifier& cascade, cv::CascadeClassifier& nestedCascade, double scale, bool tryflip);
 	void filterFace();
+
 };
 

@@ -22,6 +22,32 @@
     <ClCompile Include="..\src\app_base.cpp" />
     <ClCompile Include="..\src\camera.cpp" />
     <ClCompile Include="..\src\global_table.cpp" />
+    <ClCompile Include="..\src\imgui.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\src\imgui_demo.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\src\imgui_draw.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\src\imgui_impl_glfw.cpp" />
+    <ClCompile Include="..\src\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="..\src\imgui_widgets.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="..\src\pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -36,8 +62,17 @@
     <ClInclude Include="..\src\app_base.h" />
     <ClInclude Include="..\src\camera.h" />
     <ClInclude Include="..\src\global_table.h" />
+    <ClInclude Include="..\src\imconfig.h" />
+    <ClInclude Include="..\src\imgui.h" />
+    <ClInclude Include="..\src\imgui_impl_glfw.h" />
+    <ClInclude Include="..\src\imgui_impl_opengl3.h" />
+    <ClInclude Include="..\src\imgui_internal.h" />
+    <ClInclude Include="..\src\imstb_rectpack.h" />
+    <ClInclude Include="..\src\imstb_textedit.h" />
+    <ClInclude Include="..\src\imstb_truetype.h" />
     <ClInclude Include="..\src\pch.h" />
     <ClInclude Include="..\src\shader_sources.h" />
+    <ClInclude Include="..\src\stb_image.h" />
     <ClInclude Include="..\src\utility_functions.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -100,29 +135,29 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>..\bin\$(Configuration)\$(PlatformName)\</OutDir>
     <IntDir>..\VSTemp\$(SolutionName)\$(Projectname)\$(configuartion)\$(platformname)\</IntDir>
-    <IncludePath>3rdparty\include\realsense2\;3rdparty\include\glfw\;3rdparty\include\glm\;3rdparty\include\glew\;3rdparty\include\opencv2\;3rdparty\include\cgal\;3rdparty\include\cgal\gmp\;$(IncludePath)</IncludePath>
-    <LibraryPath>3rdparty\lib\opencv\$(PlatformName)\;3rdparty\lib\realsense2\$(platformName)\;3rdparty\lib\glfw\$(PlatformName)\;3rdparty\lib\glew\$(PlatformName)\;3rdparty\lib\cgal\$(platformname)\$(configuration);$(LibraryPath)</LibraryPath>
+    <IncludePath>3rdparty\include\realsense2\;3rdparty\include\glfw\;3rdparty\include\glm\;3rdparty\include\glew\;3rdparty\include\opencv2\;3rdparty\include\cgal\;3rdparty\include\cgal\gmp\;3rdparty\include\dlib\;$(IncludePath)</IncludePath>
+    <LibraryPath>3rdparty\lib\opencv\$(PlatformName)\;3rdparty\lib\realsense2\$(platformName)\;3rdparty\lib\glfw\$(PlatformName)\;3rdparty\lib\glew\$(PlatformName)\;3rdparty\lib\cgal\$(platformname)\$(configuration);3rdparty\lib\dlib\$(platformname)\$(configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>..\bin\$(Configuration)\$(PlatformName)\</OutDir>
     <IntDir>..\VSTemp\$(SolutionName)\$(Projectname)\$(configuartion)\$(platformname)\</IntDir>
-    <IncludePath>3rdparty\include\realsense2\;3rdparty\include\glfw\;3rdparty\include\glm\;3rdparty\include\glew\;3rdparty\include\opencv2\;3rdparty\include\cgal\;3rdparty\include\cgal\gmp\;$(IncludePath)</IncludePath>
-    <LibraryPath>3rdparty\lib\opencv\$(PlatformName)\;3rdparty\lib\realsense2\$(platformName)\;3rdparty\lib\glfw\$(PlatformName)\;3rdparty\lib\glew\$(PlatformName)\;3rdparty\lib\cgal\$(platformname)\$(configuration);$(LibraryPath)</LibraryPath>
+    <IncludePath>3rdparty\include\realsense2\;3rdparty\include\glfw\;3rdparty\include\glm\;3rdparty\include\glew\;3rdparty\include\opencv2\;3rdparty\include\cgal\;3rdparty\include\cgal\gmp\;3rdparty\include\dlib\;$(IncludePath)</IncludePath>
+    <LibraryPath>3rdparty\lib\opencv\$(PlatformName)\;3rdparty\lib\realsense2\$(platformName)\;3rdparty\lib\glfw\$(PlatformName)\;3rdparty\lib\glew\$(PlatformName)\;3rdparty\lib\cgal\$(platformname)\$(configuration);3rdparty\lib\dlib\$(platformname)\$(configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>..\bin\$(Configuration)\$(PlatformName)\</OutDir>
     <IntDir>..\VSTemp\$(SolutionName)\$(Projectname)\$(configuartion)\$(platformname)\</IntDir>
-    <IncludePath>3rdparty\include\realsense2\;3rdparty\include\glfw\;3rdparty\include\glm\;3rdparty\include\glew\;3rdparty\include\opencv2\;3rdparty\include\cgal\;3rdparty\include\cgal\gmp\;$(IncludePath)</IncludePath>
-    <LibraryPath>3rdparty\lib\opencv\$(PlatformName)\;3rdparty\lib\realsense2\$(platformName)\;3rdparty\lib\glfw\$(PlatformName)\;3rdparty\lib\glew\$(PlatformName)\;3rdparty\lib\cgal\$(platformname)\$(configuration);$(LibraryPath)</LibraryPath>
+    <IncludePath>3rdparty\include\realsense2\;3rdparty\include\glfw\;3rdparty\include\glm\;3rdparty\include\glew\;3rdparty\include\opencv2\;3rdparty\include\cgal\;3rdparty\include\cgal\gmp\;3rdparty\include\dlib\;$(IncludePath)</IncludePath>
+    <LibraryPath>3rdparty\lib\opencv\$(PlatformName)\;3rdparty\lib\realsense2\$(platformName)\;3rdparty\lib\glfw\$(PlatformName)\;3rdparty\lib\glew\$(PlatformName)\;3rdparty\lib\cgal\$(platformname)\$(configuration);3rdparty\lib\dlib\$(platformname)\$(configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>..\bin\$(Configuration)\$(PlatformName)\</OutDir>
     <IntDir>..\VSTemp\$(SolutionName)\$(Projectname)\$(configuartion)\$(platformname)\</IntDir>
-    <IncludePath>3rdparty\include\realsense2\;3rdparty\include\glfw\;3rdparty\include\glm\;3rdparty\include\glew\;3rdparty\include\opencv2\;3rdparty\include\cgal\;3rdparty\include\cgal\gmp\;$(IncludePath)</IncludePath>
-    <LibraryPath>3rdparty\lib\opencv\$(PlatformName)\;3rdparty\lib\realsense2\$(platformName)\;3rdparty\lib\glfw\$(PlatformName)\;3rdparty\lib\glew\$(PlatformName)\;3rdparty\lib\cgal\$(platformname)\$(configuration);$(LibraryPath)</LibraryPath>
+    <IncludePath>3rdparty\include\realsense2\;3rdparty\include\glfw\;3rdparty\include\glm\;3rdparty\include\glew\;3rdparty\include\opencv2\;3rdparty\include\cgal\;3rdparty\include\cgal\gmp\;3rdparty\include\dlib\;$(IncludePath)</IncludePath>
+    <LibraryPath>3rdparty\lib\opencv\$(PlatformName)\;3rdparty\lib\realsense2\$(platformName)\;3rdparty\lib\glfw\$(PlatformName)\;3rdparty\lib\glew\$(PlatformName)\;3rdparty\lib\cgal\$(platformname)\$(configuration);3rdparty\lib\dlib\$(platformname)\$(configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -138,7 +173,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>realsense2.lib;glew32.lib;libgmp-10.lib;libmpfr-4.lib;glfw3.lib;OpenGL32.lib;opencv_world400.lib;opencv_world400d.lib;CGAL_Core-vc140-mt-4.13.lib;CGAL_ImageIO-vc140-mt-4.13.lib;CGAL-vc140-mt-4.13.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>realsense2.lib;glew32.lib;libgmp-10.lib;libmpfr-4.lib;glfw3.lib;OpenGL32.lib;opencv_world400.lib;opencv_world400d.lib;CGAL_Core-vc140-mt-4.13.lib;CGAL_ImageIO-vc140-mt-4.13.lib;CGAL-vc140-mt-4.13.lib;dlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
@@ -169,7 +204,7 @@ xcopy /y 3rdparty\lib\cgal\$(platformname)\$(configuration)\libmpfr-4.dll $(outd
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>realsense2.lib;glew32.lib;libgmp-10.lib;libmpfr-4.lib;glfw3.lib;OpenGL32.lib;opencv_world400.lib;opencv_world400d.lib;CGAL_Core-vc140-mt-4.13.lib;CGAL_ImageIO-vc140-mt-4.13.lib;CGAL-vc140-mt-4.13.lib;opencv_world400d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>realsense2.lib;glew32.lib;libgmp-10.lib;libmpfr-4.lib;glfw3.lib;OpenGL32.lib;opencv_world400.lib;opencv_world400d.lib;CGAL_Core-vc140-mt-4.13.lib;CGAL_ImageIO-vc140-mt-4.13.lib;CGAL-vc140-mt-4.13.lib;dlib.lib;opencv_world400d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
@@ -204,7 +239,7 @@ xcopy /y 3rdparty\lib\cgal\$(platformname)\$(configuration)\libmpfr-4.dll $(outd
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>realsense2.lib;glew32.lib;libgmp-10.lib;libmpfr-4.lib;glfw3.lib;OpenGL32.lib;opencv_world400.lib;opencv_world400d.lib;CGAL_Core-vc140-mt-4.13.lib;CGAL_ImageIO-vc140-mt-4.13.lib;CGAL-vc140-mt-4.13.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>realsense2.lib;glew32.lib;libgmp-10.lib;libmpfr-4.lib;glfw3.lib;OpenGL32.lib;opencv_world400.lib;opencv_world400d.lib;CGAL_Core-vc140-mt-4.13.lib;CGAL_ImageIO-vc140-mt-4.13.lib;CGAL-vc140-mt-4.13.lib;dlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
@@ -239,7 +274,7 @@ xcopy /y 3rdparty\lib\cgal\$(platformname)\$(configuration)\libmpfr-4.dll $(outd
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>realsense2.lib;glew32.lib;libgmp-10.lib;libmpfr-4.lib;glfw3.lib;OpenGL32.lib;opencv_world400.lib;opencv_world400d.lib;CGAL_Core-vc140-mt-4.13.lib;CGAL_ImageIO-vc140-mt-4.13.lib;CGAL-vc140-mt-4.13.lib;opencv_world400d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>realsense2.lib;glew32.lib;libgmp-10.lib;libmpfr-4.lib;glfw3.lib;OpenGL32.lib;opencv_world400.lib;opencv_world400d.lib;CGAL_Core-vc140-mt-4.13.lib;CGAL_ImageIO-vc140-mt-4.13.lib;CGAL-vc140-mt-4.13.lib;dlib.lib;opencv_world400d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>

@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "global_table.h"
 #include "shader_sources.h"
-
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 // 보조로 사용될 함수의 정의를 이곳에 작성한다.
 
@@ -75,10 +76,10 @@ void UserData::Init_OpenGL(int width, int height) {
 	program_face_pointcloud = CreateProgram(face_pointcloud_shader_map);
 
 	std::vector<VBO_info> VBO_info_face_pointcloud = {
-		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec3) }
+		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec3) },
 	};
 	std::vector<attrib_info> attrib_info_face_pointcloud = {
-		{ 0, GL_FLOAT, 3, 0 }
+		{ 0, GL_FLOAT, 3, 0 },
 	};
 	VAO_face_pointcloud = CreateVertexArray(VBO_info_face_pointcloud, attrib_info_face_pointcloud);
 
@@ -94,6 +95,24 @@ void UserData::Init_OpenGL(int width, int height) {
 	//glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
 	//glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 }
+
+void UserData::Init_ImGui() {
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsClassic();
+
+	// Setup Platform/Renderer bindings
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 430");
+}
+
 
 void UserData::Init_RealSense() {
 	pipe.start();
@@ -112,121 +131,51 @@ void UserData::Init_Trackball(int width, int height) {
 	trackball.curr.dfar = 20.0f;
 }
 
-void UserData::Init_OpenCV() {
-	cascadeName = "haarcascades\\haarcascade_frontalface_alt.xml";
-	nestedCascadeName = "haarcascades\\haarcascade_eye_tree_eyeglasses.xml";
-	scale = 1;
-	tryflip = false;
-	inputName = "";
-
-	if(!nestedCascade.load(nestedCascadeName))
-		std::cerr << "WARNING: Could not load classifier cascade for nested objects" << std::endl;
-	
-	if (!cascade.load(cascadeName))
-	{
-		std::cerr << "ERROR: Could not load classifier cascade" << std::endl;
-	}
+void UserData::Init_dlib() {
+	detector = dlib::get_frontal_face_detector();
+	dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> sp;
 }
 
-void UserData::detectFace(cv::Mat& img, cv::CascadeClassifier& cascade, cv::CascadeClassifier& nestedCascade, double scale, bool tryflip)
-{
-	//double t = 0;
-	std::vector<cv::Rect> faces, faces2;
-	//const static cv::Scalar colors[] =
-	//{
-	//	cv::Scalar(255,0,0),
-	//	cv::Scalar(255,128,0),
-	//	cv::Scalar(255,255,0),
-	//	cv::Scalar(0,255,0),
-	//	cv::Scalar(0,128,255),
-	//	cv::Scalar(0,255,255),
-	//	cv::Scalar(0,0,255),
-	//	cv::Scalar(255,0,255)
-	//};
-	cv::Mat gray, smallImg;
+void UserData::Update_dlib() {
+	dlib::array2d<dlib::rgb_pixel> img;
+	
+	cv::Mat frame1(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+	dlib::assign_image(img, dlib::cv_image<dlib::bgr_pixel>(frame1));
+	// Make the image larger so we can detect small faces.
+	//pyramid_up(img);
 
-	cvtColor(img, gray, cv::COLOR_BGR2GRAY);
-	double fx = 1 / scale;
-	cv::resize(gray, smallImg, cv::Size(), fx, fx, cv::INTER_LINEAR_EXACT);
-	cv::equalizeHist(smallImg, smallImg);
-
-	//t = (double)cv::getTickCount();
-
-	//detect face
-	cascade.detectMultiScale(smallImg, faces,
-		1.1, 2, 0
-		//|cv::CASCADE_FIND_BIGGEST_OBJECT
-		//|cv::CASCADE_DO_ROUGH_SEARCH
-		| cv::CASCADE_SCALE_IMAGE,
-		cv::Size(30, 30));
-
-	if (faces.size() > 0) {
+	// Now tell the face detector to give us a list of bounding boxes
+	// around all the faces in the image.
+	std::vector<dlib::rectangle> dets = detector(img);
+	//std::cout << "Number of faces detected: " << dets.size() << std::endl;
+	
+	if (dets.size() > 0) {
 		isDetect = true;
-		face = faces[0];
+		dlib::full_object_detection shape;
+		shape = sp(img, dets[0]);
+		face_features.clear();
+		
+		for (int i = 0; i < shape.num_parts(); i++) {
+			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
+			face_features.push_back(point);
+		}
+		//위의 texture좌표를 OpenGL좌표로 변환
+		std::vector<glm::vec3> face_features_gl;
+		face_features_gl.clear();
+		
+		int w = realsense_tex.width;
+		int h = realsense_tex.height;
+		for (int i = 0; i < face_features.size(); i++) {
+			glm::vec3 temp = { 2 * (face_features[i].x / (float)w - 0.5), -2 * (face_features[i].y / (float)h - 0.5) , 0.f };
+			face_features_gl.push_back(temp);
+		}
+		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
+	}
+	else {
+		isDetect = false;
 	}
 
-	//if (tryflip)
-	//{
-	//	flip(smallImg, smallImg, 1);
-	//	cascade.detectMultiScale(smallImg, faces2,
-	//		1.1, 2, 0
-	//		//|CASCADE_FIND_BIGGEST_OBJECT
-	//		//|CASCADE_DO_ROUGH_SEARCH
-	//		| cv::CASCADE_SCALE_IMAGE,
-	//		cv::Size(30, 30));
-	//	for (std::vector<cv::Rect>::const_iterator r = faces2.begin(); r != faces2.end(); ++r)
-	//	{
-	//		faces.push_back(cv::Rect(smallImg.cols - r->x - r->width, r->y, r->width, r->height));
-	//	}
-	//}
-	//t = (double)cv::getTickCount() - t;
-	
-	//for (size_t i = 0; i < faces.size(); i++)
-	//{
-	//	cv::Rect r = faces[i]; //왼쪽 상단의 x, y, width, height값을 가짐
-	//	cv::Mat smallImgROI;
-	//	std::vector<cv::Rect> nestedObjects;
-	//	cv::Point center;
-	//	//cv::Scalar color = colors[i % 8];
-	//	int radius;
-	//
-	//	double aspect_ratio = (double)r.width / r.height;
-	//	if (0.75 < aspect_ratio && aspect_ratio < 1.3)
-	//	{
-	//		center.x = cvRound((r.x + r.width*0.5)*scale);
-	//		center.y = cvRound((r.y + r.height*0.5)*scale);
-	//		radius = cvRound((r.width + r.height)*0.25*scale);
-	//		circle(img, center, radius, color, 3, 8, 0);
-	//	}
-	//	else
-	//		rectangle(img, cv::Point(cvRound(r.x*scale), cvRound(r.y*scale)),
-	//			cv::Point(cvRound((r.x + r.width - 1)*scale), cvRound((r.y + r.height - 1)*scale)),
-	//			color, 3, 8, 0);
-	//
-	//
-	//	//눈을 찾고 그리는 코드
-	//	if (nestedCascade.empty())
-	//		continue;
-	//	smallImgROI = smallImg(r);
-	//	nestedCascade.detectMultiScale(smallImgROI, nestedObjects,
-	//		1.1, 2, 0
-	//		//|cv::CASCADE_FIND_BIGGEST_OBJECT
-	//		//|cv::CASCADE_DO_ROUGH_SEARCH
-	//		//|cv::CASCADE_DO_CANNY_PRUNING
-	//		| cv::CASCADE_SCALE_IMAGE,
-	//		cv::Size(30, 30));
-	//	for (size_t j = 0; j < nestedObjects.size(); j++)
-	//	{
-	//		cv::Rect nr = nestedObjects[j];
-	//		center.x = cvRound((r.x + nr.x + nr.width*0.5)*scale);
-	//		center.y = cvRound((r.y + nr.y + nr.height*0.5)*scale);
-	//		radius = cvRound((nr.width + nr.height)*0.25*scale);
-	//		circle(img, center, radius, color, 3, 8, 0);
-	//	}
-	//}
-	//imshow("result", img);
 }
-
 #include <stdlib.h>
 
 void UserData::Update_RealSense() {
@@ -295,12 +244,19 @@ void UserData::Update_RealSense() {
 	glBindTexture(GL_TEXTURE_2D, 0);	
 }
 
-void UserData::Update_OpenCV() {
-	//Realsense의 color_frame의 data를 cv::Mat형식으로 변환
-	//https://github.com/IntelRealSense/librealsense/blob/master/doc/stepbystep/getting_started_with_openCV.md
-	cv::Mat frame1(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
-	isDetect = false;
-	detectFace(frame1, cascade, nestedCascade, scale, tryflip);
+void UserData::Update_ImGui() {
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+	
+	if (show_another_window)
+	{
+		ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+		ImGui::Text("Hello from another window!");
+		if (ImGui::Button("Close Me"))
+			show_another_window = false;
+		ImGui::End();
+	}
 }
 
 
@@ -321,6 +277,12 @@ void UserData::Cleanup_OpenGL() {
 
 void UserData::Cleanup_RealSense() {
 	pipe.stop();
+}
+
+void UserData::Cleanup_ImGui() {
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 }
 
 void UserData::filterFace() {
@@ -344,6 +306,7 @@ void UserData::filterFace() {
 	float referenceDepth = avgz + c * std_deviation;
 	for (int i = 0; i < face_inlier.size(); i++) {
 		if (face_inlier[i].z < referenceDepth) {
+			face_inlier[i].z -= 0.02f;
 			face_inlier_filtered.emplace_back(face_inlier[i]);
 		}
 	}

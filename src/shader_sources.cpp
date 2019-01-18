@@ -126,10 +126,12 @@ void main() {
 
 	ShaderSource::shader_source_map["face_pointcloud_fs"] = R"(
 #version 430
+
 out vec4 fragcolor;
 
 void main() {
 	fragcolor = vec4(1, 0, 0, 1);
+	
 }
 )";
 
