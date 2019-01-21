@@ -83,6 +83,35 @@ void UserData::Init_OpenGL(int width, int height) {
 	};
 	VAO_face_pointcloud = CreateVertexArray(VBO_info_face_pointcloud, attrib_info_face_pointcloud);
 
+	//2D face mesh
+	std::map<GLenum, const char*> face_mesh2D_shader_map = {
+		{ GL_VERTEX_SHADER, ShaderSource::GetSource("face_mesh2D_vs") },
+		{ GL_FRAGMENT_SHADER, ShaderSource::GetSource("face_mesh2D_fs") }
+	};
+	program_face_mesh2D = CreateProgram(face_mesh2D_shader_map);
+
+	std::vector<VBO_info> VBO_info_face_mesh2D = {
+		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec2) },
+	};
+	std::vector<attrib_info> attrib_info_face_mesh2D = {
+		{ 0, GL_FLOAT, 2, 0 },
+	};
+	VAO_face_mesh2D = CreateVertexArray(VBO_info_face_mesh2D, attrib_info_face_mesh2D);
+
+	//3D face mesh
+	std::map<GLenum, const char*> face_mesh3D_shader_map = {
+		{ GL_VERTEX_SHADER, ShaderSource::GetSource("face_mesh3D_vs") },
+		{ GL_FRAGMENT_SHADER, ShaderSource::GetSource("face_mesh3D_fs") }
+	};
+	program_face_mesh3D = CreateProgram(face_mesh3D_shader_map);
+
+	std::vector<VBO_info> VBO_info_face_mesh3D = {
+		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec3) },
+	};
+	std::vector<attrib_info> attrib_info_face_mesh3D = {
+		{ 0, GL_FLOAT, 3, 0 },
+	};
+	VAO_face_mesh3D = CreateVertexArray(VBO_info_face_mesh3D, attrib_info_face_mesh3D);
 
 	//////OpenGL state
 	glPointSize(3.0f);
@@ -159,6 +188,7 @@ void UserData::Update_dlib() {
 			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
 			face_features.push_back(point);
 		}
+
 		//À§ÀÇ textureÁÂÇ¥¸¦ OpenGLÁÂÇ¥·Î º¯È¯
 		std::vector<glm::vec3> face_features_gl;
 		face_features_gl.clear();
@@ -170,6 +200,7 @@ void UserData::Update_dlib() {
 			face_features_gl.push_back(temp);
 		}
 		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
+
 
 		face_inlier.clear();
 		int dw = static_cast<rs2::depth_frame>(depth).get_width();
@@ -275,6 +306,95 @@ void UserData::Update_ImGui() {
 	}
 }
 
+void UserData::Update_Mesh() {
+
+	// Read in the image.
+	cv::Mat img(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+	
+	// Keep a copy around
+	cv::Mat img_orig = img.clone();
+
+	// Rectangle to be used with Subdiv2D
+	cv::Size size = img.size();
+	cv::Rect rect(0, 0, size.width, size.height);
+
+	// Create an instance of Subdiv2D
+	cv::Subdiv2D subdiv(rect);
+
+	// Create a vector of points.
+	std::vector<cv::Point2f> points;
+
+	// Read in the points from a text file
+	for (int i = 0; i < face_features.size(); i++)
+		points.push_back(cv::Point2f(face_features[i].x, face_features[i].y));
+
+	// Insert points into subdiv
+	for (std::vector<cv::Point2f>::iterator it = points.begin(); it != points.end(); it++)
+	{
+		subdiv.insert(*it);
+	}
+	// Draw delaunay triangles
+	//draw_delaunay(img, subdiv, delaunay_color);
+	std::vector<cv::Vec6f> triangleList;
+	subdiv.getTriangleList(triangleList);
+	std::vector<cv::Point> pt(3);
+	face_features_mesh2D.clear();
+
+	for (size_t i = 0; i < triangleList.size(); i++)
+	{
+		cv::Vec6f t = triangleList[i];
+		pt[0] = cv::Point(cvRound(t[0]), cvRound(t[1]));
+		pt[2] = cv::Point(cvRound(t[2]), cvRound(t[3]));
+		pt[1] = cv::Point(cvRound(t[4]), cvRound(t[5]));
+
+		glm::vec2 temp[3];
+		for (int j = 0; j < 3; j += 1) {
+			temp[j].x = pt[j].x;
+			temp[j].y = pt[j].y;
+			face_features_mesh2D.push_back(temp[j]);
+		}
+
+		// Draw rectangles completely inside the image.
+		//if (rect.contains(pt[0]) && rect.contains(pt[1]) && rect.contains(pt[2]))
+		//{
+		//	line(img, pt[0], pt[1], delaunay_color, 1, cv::LINE_AA, 0);
+		//	line(img, pt[1], pt[2], delaunay_color, 1, cv::LINE_AA, 0);
+		//	line(img, pt[2], pt[0], delaunay_color, 1, cv::LINE_AA, 0);
+		//}
+	}
+	
+
+	
+
+	face_features_mesh3D.clear();
+	int dw = static_cast<rs2::depth_frame>(depth).get_width();
+	int dh = static_cast<rs2::depth_frame>(depth).get_height();
+	int cw = static_cast<rs2::video_frame>(color).get_width();
+	int ch = static_cast<rs2::video_frame>(color).get_height();
+	
+
+	for (int i = 0; i < face_features_mesh2D.size(); i++) {
+
+		float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features_mesh2D[i].x * dw / cw, face_features_mesh2D[i].y * dh / ch);
+		float tp[3] = { 0.f, 0.f, 0.f };
+		const float pix[2] = { face_features_mesh2D[i].x, face_features_mesh2D[i].y };
+		rs2_deproject_pixel_to_point(tp, &realsense_intrinsics, pix, pixel_distance_in_meters);
+		glm::vec3 temp = { tp[0], tp[1], tp[2] };
+		face_features_mesh3D.emplace_back(temp);
+		
+
+	}
+	VertexBufferData(VAO_face_mesh3D, VBO_POS, face_features_mesh3D.size(), sizeof(glm::vec3), face_features_mesh3D.data(), GL_STREAM_DRAW);
+
+
+	for (int i = 0; i < face_features_mesh2D.size(); i += 1) {
+		face_features_mesh2D[i].x = (face_features_mesh2D[i].x / (float)size.width - 0.5) * 2.f;
+		face_features_mesh2D[i].y = (face_features_mesh2D[i].y / (float)size.height - 0.5) * (-2.f);
+	}
+
+	VertexBufferData(VAO_face_mesh2D, VBO_POS, face_features_mesh2D.size(), sizeof(glm::vec2), face_features_mesh2D.data(), GL_STREAM_DRAW);
+
+}
 
 void UserData::Cleanup_OpenGL() {
 	DestroyProgram(program_pointcloud);
@@ -288,6 +408,10 @@ void UserData::Cleanup_OpenGL() {
 
 	DestroyProgram(program_face_pointcloud);
 	DestroyVertexArray(VAO_face_pointcloud);
+
+	DestroyProgram(program_face_mesh2D);
+	DestroyVertexArray(VAO_face_mesh2D);
+
 }
 
 
@@ -328,66 +452,29 @@ void UserData::filterFace() {
 	}
 }
 
-using namespace cv;
-using namespace std;
-
-// Draw a single point
-void UserData::draw_point(Mat& img, Point2f fp, Scalar color)
-{
-	circle(img, fp, 2, color, FILLED, LINE_AA, 0);
-}
-
 // Draw delaunay triangles
-void UserData::draw_delaunay(Mat& img, Subdiv2D& subdiv, Scalar delaunay_color)
+void UserData::draw_delaunay(cv::Mat& img, cv::Subdiv2D& subdiv, cv::Scalar delaunay_color)
 {
 
-	vector<Vec6f> triangleList;
+	std::vector<cv::Vec6f> triangleList;
 	subdiv.getTriangleList(triangleList);
-	vector<Point> pt(3);
-	Size size = img.size();
-	Rect rect(0, 0, size.width, size.height);
+	std::vector<cv::Point> pt(3);
+	cv::Size size = img.size();
+	cv::Rect rect(0, 0, size.width, size.height);
 
 	for (size_t i = 0; i < triangleList.size(); i++)
 	{
-		Vec6f t = triangleList[i];
-		pt[0] = Point(cvRound(t[0]), cvRound(t[1]));
-		pt[1] = Point(cvRound(t[2]), cvRound(t[3]));
-		pt[2] = Point(cvRound(t[4]), cvRound(t[5]));
+		cv::Vec6f t = triangleList[i];
+		pt[0] = cv::Point(cvRound(t[0]), cvRound(t[1]));
+		pt[1] = cv::Point(cvRound(t[2]), cvRound(t[3]));
+		pt[2] = cv::Point(cvRound(t[4]), cvRound(t[5]));
 
 		// Draw rectangles completely inside the image.
 		if (rect.contains(pt[0]) && rect.contains(pt[1]) && rect.contains(pt[2]))
 		{
-			line(img, pt[0], pt[1], delaunay_color, 1, LINE_AA, 0);
-			line(img, pt[1], pt[2], delaunay_color, 1, LINE_AA, 0);
-			line(img, pt[2], pt[0], delaunay_color, 1, LINE_AA, 0);
+			line(img, pt[0], pt[1], delaunay_color, 1, cv::LINE_AA, 0);
+			line(img, pt[1], pt[2], delaunay_color, 1, cv::LINE_AA, 0);
+			line(img, pt[2], pt[0], delaunay_color, 1, cv::LINE_AA, 0);
 		}
-	}
-}
-
-//Draw voronoi diagram
-void UserData::draw_voronoi(Mat& img, Subdiv2D& subdiv)
-{
-	vector<vector<Point2f> > facets;
-	vector<Point2f> centers;
-	subdiv.getVoronoiFacetList(vector<int>(), facets, centers);
-
-	vector<Point> ifacet;
-	vector<vector<Point> > ifacets(1);
-
-	for (size_t i = 0; i < facets.size(); i++)
-	{
-		ifacet.resize(facets[i].size());
-		for (size_t j = 0; j < facets[i].size(); j++)
-			ifacet[j] = facets[i][j];
-
-		Scalar color;
-		color[0] = rand() & 255;
-		color[1] = rand() & 255;
-		color[2] = rand() & 255;
-		fillConvexPoly(img, ifacet, color, 8, 0);
-
-		ifacets[0] = ifacet;
-		polylines(img, ifacets, true, Scalar(), 1, LINE_AA, 0);
-		circle(img, centers[i], 3, Scalar(), FILLED, LINE_AA, 0);
 	}
 }

@@ -22,79 +22,7 @@ struct App : public UserData {
 		Update_RealSense();
 		Update_ImGui();
 		Update_dlib();
-
-
-		using namespace std;
-		using namespace cv;
-
-		// Define window names
-		string win_delaunay = "Delaunay Triangulation";
-		string win_voronoi = "Voronoi Diagram";
-
-		// Turn on animation while drawing triangles
-		bool animate = true;
-
-		// Define colors for drawing.
-		Scalar delaunay_color(255, 255, 255), points_color(0, 0, 255);
-
-		// Read in the image.
-		cv::Mat frame1(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
-		Mat img = frame1;
-
-		// Keep a copy around
-		Mat img_orig = img.clone();
-
-		// Rectangle to be used with Subdiv2D
-		Size size = img.size();
-		Rect rect(0, 0, size.width, size.height);
-
-		// Create an instance of Subdiv2D
-		Subdiv2D subdiv(rect);
-
-		// Create a vector of points.
-		vector<Point2f> points;
-
-		// Read in the points from a text file
-		for(int i = 0; i < face_features.size(); i++)
-			points.push_back(Point2f(face_features[i].x, face_features[i].y));
-	
-		// Insert points into subdiv
-		for (vector<Point2f>::iterator it = points.begin(); it != points.end(); it++)
-		{
-			subdiv.insert(*it);
-			// Show animation
-			if (animate)
-			{
-				Mat img_copy = img_orig.clone();
-				// Draw delaunay triangles
-				draw_delaunay(img_copy, subdiv, delaunay_color);
-				imshow(win_delaunay, img_copy);
-				waitKey(100);
-			}
-
-		}
-
-		// Draw delaunay triangles
-		draw_delaunay(img, subdiv, delaunay_color);
-
-		// Draw points
-		for (vector<Point2f>::iterator it = points.begin(); it != points.end(); it++)
-		{
-			draw_point(img, *it, points_color);
-		}
-
-		// Allocate space for Voronoi Diagram
-		Mat img_voronoi = Mat::zeros(img.rows, img.cols, CV_8UC3);
-
-		// Draw Voronoi diagram
-		draw_voronoi(img_voronoi, subdiv);
-
-		// Show results.
-		imshow(win_delaunay, img);
-		imshow(win_voronoi, img_voronoi);
-		waitKey(0);
-
-
+		if (isDetect) { Update_Mesh(); }
 		trackball.update(time_elapsed);
 		VP = trackball.projection_matrix()*trackball.view_matrix();
 
@@ -108,6 +36,7 @@ struct App : public UserData {
 
 		if (showFace) {
 			render_face_pointcloud();
+			//render_face_mesh3D();
 		}
 		else {
 			if (!isColor) {
@@ -115,11 +44,13 @@ struct App : public UserData {
 				render_pointcloud();
 				if (isDetect) {
 					render_face_pointcloud();
+					//render_face_mesh3D();
 				}
 			}
 			else {
 				if (isDetect) { //찾은 얼굴이 있으면
 					render_face_boundary();
+					//render_face_mesh2D();
 				}
 				render_color();
 			}
@@ -193,10 +124,44 @@ struct App : public UserData {
 		UniformMatrix4fv(program_face_pointcloud, "MVP", 1, GL_FALSE, &VP[0][0]);
 		glDrawArrays(GL_POINTS, 0, VAO_face_pointcloud.count);
 
-		glBindTexture(GL_TEXTURE_2D, 0);
 		glBindVertexArray(0);
 		glUseProgram(0);
 		glPointSize(3.f);
+	}
+
+	void render_face_mesh2D() {
+		//glFrontFace(GL_CW);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glBindVertexArray(0);
+		glUseProgram(0);
+
+		glUseProgram(program_face_mesh2D);
+		glBindVertexArray(VAO_face_mesh2D);
+
+		//UniformMatrix4fv(program_face_mesh, "MVP", 1, GL_FALSE, &VP[0][0]);
+		Uniform1f(program_color, "aspectRatio", aspectRatio);
+		glDrawArrays(GL_TRIANGLES, 0, VAO_face_mesh2D.count);
+
+		glBindVertexArray(0);
+		glUseProgram(0);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		//glFrontFace(GL_CCW);
+	}
+
+	void render_face_mesh3D() {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glBindVertexArray(0);
+		glUseProgram(0);
+
+		glUseProgram(program_face_mesh3D);
+		glBindVertexArray(VAO_face_mesh3D);
+
+		UniformMatrix4fv(program_face_mesh3D, "MVP", 1, GL_FALSE, &VP[0][0]);
+		glDrawArrays(GL_TRIANGLES, 0, VAO_face_mesh3D.count);
+
+		glBindVertexArray(0);
+		glUseProgram(0);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
 
 	void render_ImGui() {
@@ -204,6 +169,7 @@ struct App : public UserData {
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}
+
 
 	void cleanup() override {
 		Cleanup_RealSense();

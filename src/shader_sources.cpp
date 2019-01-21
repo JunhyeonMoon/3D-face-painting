@@ -135,5 +135,58 @@ void main() {
 }
 )";
 
+	ShaderSource::shader_source_map["face_mesh2D_vs"] = R"(
+#version 430
+layout(location = 0) in vec2 pos;
+
+
+uniform float aspectRatio;
+
+void main() {		
+	float x = pos.x;
+	float y = pos.y;
+
+	if(aspectRatio > 1.0) 
+		x /= aspectRatio;
+	else
+		y *= aspectRatio;
+	gl_Position = vec4(x, y, 0, 1);
+	
+} 
+)";
+
+	ShaderSource::shader_source_map["face_mesh2D_fs"] = R"(
+#version 430
+
+out vec4 fragcolor;
+
+void main() {
+	fragcolor = vec4(1, 0, 0, 1);
+	
+}
+)";
+	ShaderSource::shader_source_map["face_mesh3D_vs"] = R"(
+#version 430
+layout(location = 0) in vec3 pos;
+
+uniform mat4 MVP;
+
+void main() {		
+	gl_Position = MVP*vec4(pos, 1);
+} 
+)";
+
+
+	ShaderSource::shader_source_map["face_mesh3D_fs"] = R"(
+#version 430
+
+out vec4 fragcolor;
+
+void main() {
+	fragcolor = vec4(1, 0, 0, 1);
+	
+}
+)";
+
 
 }

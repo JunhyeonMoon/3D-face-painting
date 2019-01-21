@@ -23,6 +23,8 @@ struct UserData : public AppBase {
 	std::vector<glm::vec3> face_inlier;
 	std::vector<glm::vec3> face_inlier_filtered;
 	std::vector<glm::vec2> face_features;
+	std::vector<glm::vec2> face_features_mesh2D;
+	std::vector<glm::vec3> face_features_mesh3D;
 	
 
 	// OpenGL Objects
@@ -37,6 +39,12 @@ struct UserData : public AppBase {
 
 	Program program_face_pointcloud;
 	VertexArray VAO_face_pointcloud;
+
+	Program program_face_mesh2D;
+	VertexArray VAO_face_mesh2D;
+
+	Program program_face_mesh3D;
+	VertexArray VAO_face_mesh3D;
 
 	// RealSense
 	rs2::pipeline pipe;
@@ -74,6 +82,7 @@ struct UserData : public AppBase {
 	void Update_RealSense();
 	void Update_ImGui();
 	void Update_dlib();
+	void Update_Mesh();
 
 	void Cleanup_OpenGL();
 	void Cleanup_RealSense();
@@ -85,8 +94,6 @@ struct UserData : public AppBase {
 	void draw_point(cv::Mat& img, cv::Point2f fp, cv::Scalar color);
 	// Draw delaunay triangles
 	void draw_delaunay(cv::Mat& img, cv::Subdiv2D& subdiv, cv::Scalar delaunay_color);
-	//Draw voronoi diagram
-	void draw_voronoi(cv::Mat& img, cv::Subdiv2D& subdiv);
 
 };
 
