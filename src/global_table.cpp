@@ -170,6 +170,22 @@ void UserData::Update_dlib() {
 			face_features_gl.push_back(temp);
 		}
 		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
+
+		face_inlier.clear();
+		int dw = static_cast<rs2::depth_frame>(depth).get_width();
+		int dh = static_cast<rs2::depth_frame>(depth).get_height();
+		int cw = static_cast<rs2::video_frame>(color).get_width();
+		int ch = static_cast<rs2::video_frame>(color).get_height();
+
+		for (int i = 0; i < face_features.size(); i++) {
+			float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features[i].x * dw / cw, face_features[i].y * dh / ch);
+			float tp[3] = { 0.f, 0.f, 0.f };
+			const float pix[2] = { face_features[i].x, face_features[i].y };
+			rs2_deproject_pixel_to_point(tp, &realsense_intrinsics, pix, pixel_distance_in_meters);
+			glm::vec3 temp = { tp[0], tp[1], tp[2] };
+			face_inlier.emplace_back(temp);
+		}
+		VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
 	}
 	else {
 		isDetect = false;
@@ -309,5 +325,69 @@ void UserData::filterFace() {
 			face_inlier[i].z -= 0.02f;
 			face_inlier_filtered.emplace_back(face_inlier[i]);
 		}
+	}
+}
+
+using namespace cv;
+using namespace std;
+
+// Draw a single point
+void UserData::draw_point(Mat& img, Point2f fp, Scalar color)
+{
+	circle(img, fp, 2, color, FILLED, LINE_AA, 0);
+}
+
+// Draw delaunay triangles
+void UserData::draw_delaunay(Mat& img, Subdiv2D& subdiv, Scalar delaunay_color)
+{
+
+	vector<Vec6f> triangleList;
+	subdiv.getTriangleList(triangleList);
+	vector<Point> pt(3);
+	Size size = img.size();
+	Rect rect(0, 0, size.width, size.height);
+
+	for (size_t i = 0; i < triangleList.size(); i++)
+	{
+		Vec6f t = triangleList[i];
+		pt[0] = Point(cvRound(t[0]), cvRound(t[1]));
+		pt[1] = Point(cvRound(t[2]), cvRound(t[3]));
+		pt[2] = Point(cvRound(t[4]), cvRound(t[5]));
+
+		// Draw rectangles completely inside the image.
+		if (rect.contains(pt[0]) && rect.contains(pt[1]) && rect.contains(pt[2]))
+		{
+			line(img, pt[0], pt[1], delaunay_color, 1, LINE_AA, 0);
+			line(img, pt[1], pt[2], delaunay_color, 1, LINE_AA, 0);
+			line(img, pt[2], pt[0], delaunay_color, 1, LINE_AA, 0);
+		}
+	}
+}
+
+//Draw voronoi diagram
+void UserData::draw_voronoi(Mat& img, Subdiv2D& subdiv)
+{
+	vector<vector<Point2f> > facets;
+	vector<Point2f> centers;
+	subdiv.getVoronoiFacetList(vector<int>(), facets, centers);
+
+	vector<Point> ifacet;
+	vector<vector<Point> > ifacets(1);
+
+	for (size_t i = 0; i < facets.size(); i++)
+	{
+		ifacet.resize(facets[i].size());
+		for (size_t j = 0; j < facets[i].size(); j++)
+			ifacet[j] = facets[i][j];
+
+		Scalar color;
+		color[0] = rand() & 255;
+		color[1] = rand() & 255;
+		color[2] = rand() & 255;
+		fillConvexPoly(img, ifacet, color, 8, 0);
+
+		ifacets[0] = ifacet;
+		polylines(img, ifacets, true, Scalar(), 1, LINE_AA, 0);
+		circle(img, centers[i], 3, Scalar(), FILLED, LINE_AA, 0);
 	}
 }

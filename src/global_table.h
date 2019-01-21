@@ -81,5 +81,12 @@ struct UserData : public AppBase {
 
 	void filterFace();
 
+	// Draw a single point
+	void draw_point(cv::Mat& img, cv::Point2f fp, cv::Scalar color);
+	// Draw delaunay triangles
+	void draw_delaunay(cv::Mat& img, cv::Subdiv2D& subdiv, cv::Scalar delaunay_color);
+	//Draw voronoi diagram
+	void draw_voronoi(cv::Mat& img, cv::Subdiv2D& subdiv);
+
 };
 

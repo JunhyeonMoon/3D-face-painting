@@ -24,24 +24,76 @@ struct App : public UserData {
 		Update_dlib();
 
 
-		if(isDetect){
-			face_inlier.clear();
-			int dw = static_cast<rs2::depth_frame>(depth).get_width();
-			int dh = static_cast<rs2::depth_frame>(depth).get_height();
-			int cw = static_cast<rs2::video_frame>(color).get_width();
-			int ch = static_cast<rs2::video_frame>(color).get_height();
+		using namespace std;
+		using namespace cv;
 
-			for (int i = 0; i < face_features.size(); i++) {
-				float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features[i].x * dw / cw, face_features[i].y * dh / ch);
-				float tp[3] = { 0.f, 0.f, 0.f };
-				const float pix[2] = { face_features[i].x, face_features[i].y };
-				rs2_deproject_pixel_to_point(tp, &realsense_intrinsics, pix, pixel_distance_in_meters);
-				glm::vec3 temp = { tp[0], tp[1], tp[2] };
-				face_inlier.emplace_back(temp);
+		// Define window names
+		string win_delaunay = "Delaunay Triangulation";
+		string win_voronoi = "Voronoi Diagram";
+
+		// Turn on animation while drawing triangles
+		bool animate = true;
+
+		// Define colors for drawing.
+		Scalar delaunay_color(255, 255, 255), points_color(0, 0, 255);
+
+		// Read in the image.
+		cv::Mat frame1(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+		Mat img = frame1;
+
+		// Keep a copy around
+		Mat img_orig = img.clone();
+
+		// Rectangle to be used with Subdiv2D
+		Size size = img.size();
+		Rect rect(0, 0, size.width, size.height);
+
+		// Create an instance of Subdiv2D
+		Subdiv2D subdiv(rect);
+
+		// Create a vector of points.
+		vector<Point2f> points;
+
+		// Read in the points from a text file
+		for(int i = 0; i < face_features.size(); i++)
+			points.push_back(Point2f(face_features[i].x, face_features[i].y));
+	
+		// Insert points into subdiv
+		for (vector<Point2f>::iterator it = points.begin(); it != points.end(); it++)
+		{
+			subdiv.insert(*it);
+			// Show animation
+			if (animate)
+			{
+				Mat img_copy = img_orig.clone();
+				// Draw delaunay triangles
+				draw_delaunay(img_copy, subdiv, delaunay_color);
+				imshow(win_delaunay, img_copy);
+				waitKey(100);
 			}
-			VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
 
 		}
+
+		// Draw delaunay triangles
+		draw_delaunay(img, subdiv, delaunay_color);
+
+		// Draw points
+		for (vector<Point2f>::iterator it = points.begin(); it != points.end(); it++)
+		{
+			draw_point(img, *it, points_color);
+		}
+
+		// Allocate space for Voronoi Diagram
+		Mat img_voronoi = Mat::zeros(img.rows, img.cols, CV_8UC3);
+
+		// Draw Voronoi diagram
+		draw_voronoi(img_voronoi, subdiv);
+
+		// Show results.
+		imshow(win_delaunay, img);
+		imshow(win_voronoi, img_voronoi);
+		waitKey(0);
+
 
 		trackball.update(time_elapsed);
 		VP = trackball.projection_matrix()*trackball.view_matrix();
