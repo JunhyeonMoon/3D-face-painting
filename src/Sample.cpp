@@ -35,16 +35,18 @@ struct App : public UserData {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		if (showFace) {
-			render_face_pointcloud();
-			//render_face_mesh3D();
+			//render_face_pointcloud();
+			render_face_mesh3D();
+			//render_face_paint();
 		}
 		else {
 			if (!isColor) {
 				
 				render_pointcloud();
 				if (isDetect) {
-					render_face_pointcloud();
-					//render_face_mesh3D();
+					//render_face_pointcloud();
+					render_face_mesh3D();
+					//render_face_paint();
 				}
 			}
 			else {
@@ -163,6 +165,24 @@ struct App : public UserData {
 		glUseProgram(0);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
+
+	void render_face_paint() {
+		// 3d mesh painting
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glBindVertexArray(0);
+		glUseProgram(0);
+
+		glUseProgram(program_face_mesh3D_paint);
+		glBindVertexArray(VAO_face_mesh3D_paint);
+
+		UniformMatrix4fv(program_face_mesh3D_paint, "MVP", 1, GL_FALSE, &VP[0][0]);
+		glDrawArrays(GL_TRIANGLES, 0, VAO_face_mesh3D_paint.count);
+
+		glBindVertexArray(0);
+		glUseProgram(0);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
+
 
 	void render_ImGui() {
 		// Rendering

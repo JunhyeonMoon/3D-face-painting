@@ -7,6 +7,10 @@
 // 보조로 사용될 함수의 정의를 이곳에 작성한다.
 
 void UserData::Init_OpenGL(int width, int height) {
+	tx.data = stbi_load("image.png", &tx.width, &tx.height, &tx.n, 4);
+	tx.tex = CreateTexture2D(tx.width, tx.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tx.data);
+	stbi_image_free(tx.data);
+
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	aspectRatio = (float)width / (float)height;
 	//////pointcloud
@@ -113,6 +117,23 @@ void UserData::Init_OpenGL(int width, int height) {
 	};
 	VAO_face_mesh3D = CreateVertexArray(VBO_info_face_mesh3D, attrib_info_face_mesh3D);
 
+	// 3D face mesh painting
+	std::map<GLenum, const char*> face_mesh3D_paint_shader_map = {
+		{ GL_VERTEX_SHADER, ShaderSource::GetSource("face_mesh3D_paint_vs") },
+		{ GL_FRAGMENT_SHADER, ShaderSource::GetSource("face_mesh3D_paint_fs") }
+	};
+	program_face_mesh3D_paint = CreateProgram(face_mesh3D_paint_shader_map);
+
+	std::vector<VBO_info> VBO_info_face_mesh3D_paint = {
+		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec3) },
+		{ VBO_TEX, 0, nullptr, 0, sizeof(glm::vec2) }
+	};
+	std::vector<attrib_info> attrib_info_face_mesh3D_paint = {
+		{ 0, GL_FLOAT, 3, 0 },
+		{ 1, GL_FLOAT, 2, 0 }
+	};
+	VAO_face_mesh3D_paint = CreateVertexArray(VBO_info_face_mesh3D_paint, attrib_info_face_mesh3D_paint);
+
 	//////OpenGL state
 	glPointSize(3.0f);
 	glEnable(GL_CULL_FACE); // 삼각형이 뒷면이 보이는 경우 그리지 않는다.
@@ -216,6 +237,71 @@ void UserData::Update_dlib() {
 			glm::vec3 temp = { tp[0], tp[1], tp[2] };
 			face_inlier.emplace_back(temp);
 		}
+		// 표준편차 
+		float avg_of_z = 0.0;
+		for (int i = 0; i < face_inlier.size(); i++) {
+			avg_of_z += face_inlier[i].z;
+		}
+		avg_of_z /= (float)face_inlier.size();
+		float var_of_z = 0.0;
+		for (int i = 0; i < face_inlier.size(); i++) {
+			var_of_z += pow((avg_of_z - face_inlier[i].z), 2);
+		}
+		var_of_z /= (float)face_inlier.size();
+		float dev_of_z = sqrt(var_of_z);
+
+		float c = 1.f;
+		float refer_Depth = avg_of_z + c * dev_of_z;
+		for (int i = 0; i < face_inlier.size(); i++) {
+			if (face_inlier[i].z > refer_Depth) {
+				if (i >= 0 && i < 6) {
+					for (int j = 0; j < 6; j++) {
+						if (face_inlier[j].z <= refer_Depth) {
+							face_inlier[i].z = face_inlier[j].z;
+							break;
+						}
+					}
+				}
+				else if (i >= 6 && i < 11) {
+					for (int j = 6; j < 11; j++) {
+						if (face_inlier[j].z <= refer_Depth) {
+							face_inlier[i].z = face_inlier[j].z;
+							break;
+						}
+					}
+				}
+				else if (i >= 11 && i < 17) {
+					for (int j = 11; j < 17; j++) {
+						if (face_inlier[j].z <= refer_Depth) {
+							face_inlier[i].z = face_inlier[j].z;
+							break;
+						}
+					}
+				}
+				else if (i >= 17 && i < 22) {
+					for (int j = 17; j < 22; j++) {
+						if (face_inlier[j].z <= refer_Depth) {
+							face_inlier[i].z = face_inlier[j].z;
+							break;
+						}
+					}
+				}
+				else if (i >= 22 && i < 27) {
+					for (int j = 22; j < 27; j++) {
+						if (face_inlier[j].z <= refer_Depth) {
+							face_inlier[i].z = face_inlier[j].z;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		face_features_depth.clear();
+		for (int i = 0; i < face_inlier.size(); i++) {
+			face_features_depth.push_back(face_inlier[i].z);
+		}
+
 		VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
 	}
 	else {
@@ -372,10 +458,17 @@ void UserData::Update_Mesh() {
 	int cw = static_cast<rs2::video_frame>(color).get_width();
 	int ch = static_cast<rs2::video_frame>(color).get_height();
 	
-
+	// deprojection 
 	for (int i = 0; i < face_features_mesh2D.size(); i++) {
 
-		float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features_mesh2D[i].x * dw / cw, face_features_mesh2D[i].y * dh / ch);
+		// float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features_mesh2D[i].x * dw / cw, face_features_mesh2D[i].y * dh / ch);
+		float pixel_distance_in_meters;
+		for (int j = 0; j < face_features.size(); j++) {
+			if (face_features[j] == face_features_mesh2D[i]) {
+				pixel_distance_in_meters = face_features_depth[j];
+				break;
+			}
+		}
 		float tp[3] = { 0.f, 0.f, 0.f };
 		const float pix[2] = { face_features_mesh2D[i].x, face_features_mesh2D[i].y };
 		rs2_deproject_pixel_to_point(tp, &realsense_intrinsics, pix, pixel_distance_in_meters);
@@ -393,8 +486,18 @@ void UserData::Update_Mesh() {
 	}
 
 	VertexBufferData(VAO_face_mesh2D, VBO_POS, face_features_mesh2D.size(), sizeof(glm::vec2), face_features_mesh2D.data(), GL_STREAM_DRAW);
+	
+	// 3D mesh painting
+	std::vector<glm::vec3> ulgul;
+	ulgul.clear();
+	for (int i = 0; i < face_features_mesh3D.size() / 3; i++) {
+		ulgul.push_back(face_features_mesh3D[i]);
+		
+	}
+	VertexBufferData(VAO_face_mesh3D_paint, VBO_POS, ulgul.size(), sizeof(glm::vec3), ulgul.data(), GL_STREAM_DRAW);
 
 }
+
 
 void UserData::Cleanup_OpenGL() {
 	DestroyProgram(program_pointcloud);

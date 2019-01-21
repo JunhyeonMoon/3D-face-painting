@@ -26,6 +26,9 @@ struct UserData : public AppBase {
 	std::vector<glm::vec2> face_features_mesh2D;
 	std::vector<glm::vec3> face_features_mesh3D;
 	
+	texture_info tx;
+	// depth ¿˙¿Â
+	std::vector<float> face_features_depth;
 
 	// OpenGL Objects
 	Program program_pointcloud;
@@ -45,6 +48,9 @@ struct UserData : public AppBase {
 
 	Program program_face_mesh3D;
 	VertexArray VAO_face_mesh3D;
+
+	Program program_face_mesh3D_paint;
+	VertexArray VAO_face_mesh3D_paint;
 
 	// RealSense
 	rs2::pipeline pipe;
