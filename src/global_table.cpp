@@ -7,9 +7,10 @@
 // 보조로 사용될 함수의 정의를 이곳에 작성한다.
 
 void UserData::Init_OpenGL(int width, int height) {
-	tx.data = stbi_load("image.png", &tx.width, &tx.height, &tx.n, 4);
-	tx.tex = CreateTexture2D(tx.width, tx.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tx.data);
-	stbi_image_free(tx.data);
+
+	tex.data = stbi_load("image2.png", &tex.width, &tex.height, &tex.n, 4);
+	tex.tex = CreateTexture2D(tex.width, tex.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex.data);
+	stbi_image_free(tex.data);
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	aspectRatio = (float)width / (float)height;
@@ -110,14 +111,15 @@ void UserData::Init_OpenGL(int width, int height) {
 	program_face_mesh3D = CreateProgram(face_mesh3D_shader_map);
 
 	std::vector<VBO_info> VBO_info_face_mesh3D = {
-		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec3) },
+		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec3) }
 	};
 	std::vector<attrib_info> attrib_info_face_mesh3D = {
-		{ 0, GL_FLOAT, 3, 0 },
+		{ 0, GL_FLOAT, 3, 0 }
 	};
 	VAO_face_mesh3D = CreateVertexArray(VBO_info_face_mesh3D, attrib_info_face_mesh3D);
 
-	// 3D face mesh painting
+
+	//3D face mesh textured
 	std::map<GLenum, const char*> face_mesh3D_paint_shader_map = {
 		{ GL_VERTEX_SHADER, ShaderSource::GetSource("face_mesh3D_paint_vs") },
 		{ GL_FRAGMENT_SHADER, ShaderSource::GetSource("face_mesh3D_paint_fs") }
@@ -165,8 +167,15 @@ void UserData::Init_ImGui() {
 
 
 void UserData::Init_RealSense() {
-	pipe.start();
-	realsense_intrinsics = pipe.get_active_profile().get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>().get_intrinsics();
+	selection = pipe.start();
+	auto depth_stream = selection.get_stream(RS2_STREAM_DEPTH);
+	auto color_stream = selection.get_stream(RS2_STREAM_COLOR);
+	extrinsics_depth_to_color = depth_stream.get_extrinsics_to(color_stream);
+	extrinsics_color_to_depth = color_stream.get_extrinsics_to(depth_stream);
+
+	realsense_intrinsics_color = pipe.get_active_profile().get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>().get_intrinsics();
+	realsense_intrinsics_depth = pipe.get_active_profile().get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>().get_intrinsics();
+
 }
 
 void UserData::Init_Trackball(int width, int height) {
@@ -221,88 +230,72 @@ void UserData::Update_dlib() {
 			face_features_gl.push_back(temp);
 		}
 		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
-
-
+	
 		face_inlier.clear();
-		int dw = static_cast<rs2::depth_frame>(depth).get_width();
-		int dh = static_cast<rs2::depth_frame>(depth).get_height();
-		int cw = static_cast<rs2::video_frame>(color).get_width();
-		int ch = static_cast<rs2::video_frame>(color).get_height();
-
-		for (int i = 0; i < face_features.size(); i++) {
-			float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features[i].x * dw / cw, face_features[i].y * dh / ch);
-			float tp[3] = { 0.f, 0.f, 0.f };
-			const float pix[2] = { face_features[i].x, face_features[i].y };
-			rs2_deproject_pixel_to_point(tp, &realsense_intrinsics, pix, pixel_distance_in_meters);
-			glm::vec3 temp = { tp[0], tp[1], tp[2] };
-			face_inlier.emplace_back(temp);
-		}
-		// 표준편차 
-		float avg_of_z = 0.0;
-		for (int i = 0; i < face_inlier.size(); i++) {
-			avg_of_z += face_inlier[i].z;
-		}
-		avg_of_z /= (float)face_inlier.size();
-		float var_of_z = 0.0;
-		for (int i = 0; i < face_inlier.size(); i++) {
-			var_of_z += pow((avg_of_z - face_inlier[i].z), 2);
-		}
-		var_of_z /= (float)face_inlier.size();
-		float dev_of_z = sqrt(var_of_z);
-
-		float c = 1.f;
-		float refer_Depth = avg_of_z + c * dev_of_z;
-		for (int i = 0; i < face_inlier.size(); i++) {
-			if (face_inlier[i].z > refer_Depth) {
-				if (i >= 0 && i < 6) {
-					for (int j = 0; j < 6; j++) {
-						if (face_inlier[j].z <= refer_Depth) {
-							face_inlier[i].z = face_inlier[j].z;
-							break;
-						}
-					}
-				}
-				else if (i >= 6 && i < 11) {
-					for (int j = 6; j < 11; j++) {
-						if (face_inlier[j].z <= refer_Depth) {
-							face_inlier[i].z = face_inlier[j].z;
-							break;
-						}
-					}
-				}
-				else if (i >= 11 && i < 17) {
-					for (int j = 11; j < 17; j++) {
-						if (face_inlier[j].z <= refer_Depth) {
-							face_inlier[i].z = face_inlier[j].z;
-							break;
-						}
-					}
-				}
-				else if (i >= 17 && i < 22) {
-					for (int j = 17; j < 22; j++) {
-						if (face_inlier[j].z <= refer_Depth) {
-							face_inlier[i].z = face_inlier[j].z;
-							break;
-						}
-					}
-				}
-				else if (i >= 22 && i < 27) {
-					for (int j = 22; j < 27; j++) {
-						if (face_inlier[j].z <= refer_Depth) {
-							face_inlier[i].z = face_inlier[j].z;
-							break;
-						}
-					}
-				}
-			}
-		}
-
-		face_features_depth.clear();
-		for (int i = 0; i < face_inlier.size(); i++) {
-			face_features_depth.push_back(face_inlier[i].z);
-		}
-
+		transform_2Dto3D(face_features, face_inlier);
 		VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
+		
+		glm::vec3 lefteyes(0.f, 0.f, 0.f);
+		glm::vec3 righteyes(0.f, 0.f, 0.f);
+		for (int i = 17; i <= 21; i++) {
+			lefteyes += face_inlier[i];
+		}
+		for (int i = 22; i <= 26; i++) {
+			righteyes += face_inlier[i];
+		}
+
+		lefteyes /= 5.f; righteyes /= 5.f;
+		
+		glm::vec3 horiaxis = glm::normalize(lefteyes - righteyes);
+		glm::vec3 vertaxis = glm::normalize(glm::cross(glm::vec3(0.f, 0.f, 1.f), horiaxis));
+		glm::vec3 norm = glm::normalize(glm::cross(vertaxis, horiaxis));
+		glm::vec3 nose = face_inlier[30];
+		face_plane.clear();
+		for (int i = 0; i < face_inlier.size(); i++) {
+			if (i == 30) {
+				face_plane.push_back(face_inlier[30]);
+				continue;
+			}
+
+			glm::vec3 a = face_inlier[i] - face_inlier[30];
+			float b_size = glm::dot(norm, a);
+			glm::vec3 b = b_size * norm;
+			glm::vec3 c = glm::normalize(a + b);
+			glm::vec3 d =  glm::length(a) * c;
+			glm::vec3 od = face_inlier[30] + d;
+			face_plane.push_back(od);
+		}
+
+		face_tex_coordinate.clear();
+		float x_max = -10000.f;
+		float y_max = -10000.f;
+		float x_min = 10000.f;
+		float y_min = 10000.f;
+
+		for (int i = 0; i < face_plane.size(); i++) {
+			glm::vec3 v = face_plane[i] - nose;
+			float xcoord = glm::distance(v, vertaxis);
+			float ycoord = glm::distance(v, horiaxis);
+
+			if (x_max < xcoord) {
+				x_max = xcoord;
+			}
+			if (y_max < ycoord) {
+				y_max = ycoord;
+			}
+			if (x_min > xcoord) {
+				x_min = xcoord;
+			}
+			if (y_min > xcoord) {
+				y_min = xcoord;
+			}
+			face_tex_coordinate.push_back(glm::vec2(xcoord,ycoord));
+		}
+
+		for (int i = 0; i < face_plane.size(); i++) {
+			face_tex_coordinate[i].x = (face_tex_coordinate[i].x - x_min) / x_max;
+			face_tex_coordinate[i].y = (face_tex_coordinate[i].y - y_min) / y_max;
+		}
 	}
 	else {
 		isDetect = false;
@@ -406,13 +399,85 @@ void UserData::Update_Mesh() {
 
 	// Create an instance of Subdiv2D
 	cv::Subdiv2D subdiv(rect);
+	cv::Subdiv2D subdiv_temp(rect);
 
 	// Create a vector of points.
 	std::vector<cv::Point2f> points;
 
+
+	/**************알맞은 텍스쳐 좌표를 주기 위한 번거로운 과정***************/
+	std::vector<glm::vec2> face_features_mesh2D_temp;
+	face_features_mesh2D_temp.clear();
 	// Read in the points from a text file
 	for (int i = 0; i < face_features.size(); i++)
 		points.push_back(cv::Point2f(face_features[i].x, face_features[i].y));
+
+	// Insert points into subdiv
+	for (std::vector<cv::Point2f>::iterator it = points.begin(); it != points.end(); it++)
+	{
+		subdiv_temp.insert(*it);
+	}
+	// Draw delaunay triangles
+	//draw_delaunay(img, subdiv, delaunay_color);
+	std::vector<cv::Vec6f> triangleList_temp;
+	subdiv_temp.getTriangleList(triangleList_temp);
+	std::vector<cv::Point> pt_temp(3);
+
+	for (size_t i = 0; i < triangleList_temp.size(); i++)
+	{
+		cv::Vec6f t = triangleList_temp[i];
+		pt_temp[0] = cv::Point(cvRound(t[0]), cvRound(t[1]));
+		pt_temp[2] = cv::Point(cvRound(t[2]), cvRound(t[3]));
+		pt_temp[1] = cv::Point(cvRound(t[4]), cvRound(t[5]));
+
+		glm::vec2 temp[3];
+		for (int j = 0; j < 3; j += 1) {
+			temp[j].x = pt_temp[j].x;
+			temp[j].y = pt_temp[j].y;
+			face_features_mesh2D_temp.push_back(temp[j]);
+		}
+	}
+
+	std::vector<glm::vec2> face_texcoord;
+	face_texcoord.clear();
+	for (int i = 0; i < face_features_mesh2D_temp.size(); i++) {
+		for (int j = 0; j < face_features.size(); j++) {
+			if (face_features_mesh2D_temp[i] == face_features[j]) {
+				face_texcoord.push_back(face_tex_coordinate[j]);
+				break;
+			}
+		}
+	}
+
+	//for (int i = 0; i < face_texcoord.size(); i++) {
+	//	printf("%f, %f\n", face_texcoord[i].x, face_texcoord[i].y);
+	//}
+
+	VertexBufferData(VAO_face_mesh3D_paint, VBO_TEX, face_texcoord.size(), sizeof(glm::vec2), face_texcoord.data(), GL_STREAM_DRAW);
+	/*******************************************/
+
+	std::vector<glm::vec2> face_features_fixed;
+	face_features_fixed.clear();
+	for (int i = 0; i < face_features.size(); i++) {
+		face_features_fixed.push_back(glm::vec2(face_features[i].x - 13.f, face_features[i].y));
+	}
+
+	for (int i = 0; i < face_features.size(); i++) {
+		if (0 <= i && i <= 5) {
+			face_features_fixed[i].x += 15.f;
+		}
+		else if (6 <= i && i <= 10) {
+			face_features_fixed[i].y -= 15.f;
+		}
+		else if (11 <= i && i <= 16) {
+			face_features_fixed[i].x -= 15.f;
+		}
+	}
+
+
+	// Read in the points from a text file
+	for (int i = 0; i < face_features_fixed.size(); i++)
+		points.push_back(cv::Point2f(face_features_fixed[i].x, face_features_fixed[i].y));
 
 	// Insert points into subdiv
 	for (std::vector<cv::Point2f>::iterator it = points.begin(); it != points.end(); it++)
@@ -439,65 +504,43 @@ void UserData::Update_Mesh() {
 			temp[j].y = pt[j].y;
 			face_features_mesh2D.push_back(temp[j]);
 		}
-
-		// Draw rectangles completely inside the image.
-		//if (rect.contains(pt[0]) && rect.contains(pt[1]) && rect.contains(pt[2]))
-		//{
-		//	line(img, pt[0], pt[1], delaunay_color, 1, cv::LINE_AA, 0);
-		//	line(img, pt[1], pt[2], delaunay_color, 1, cv::LINE_AA, 0);
-		//	line(img, pt[2], pt[0], delaunay_color, 1, cv::LINE_AA, 0);
-		//}
 	}
 	
-
-	
-
 	face_features_mesh3D.clear();
-	int dw = static_cast<rs2::depth_frame>(depth).get_width();
-	int dh = static_cast<rs2::depth_frame>(depth).get_height();
-	int cw = static_cast<rs2::video_frame>(color).get_width();
-	int ch = static_cast<rs2::video_frame>(color).get_height();
-	
-	// deprojection 
 	for (int i = 0; i < face_features_mesh2D.size(); i++) {
-
-		// float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features_mesh2D[i].x * dw / cw, face_features_mesh2D[i].y * dh / ch);
-		float pixel_distance_in_meters;
-		for (int j = 0; j < face_features.size(); j++) {
-			if (face_features[j] == face_features_mesh2D[i]) {
-				pixel_distance_in_meters = face_features_depth[j];
-				break;
-			}
-		}
 		float tp[3] = { 0.f, 0.f, 0.f };
 		const float pix[2] = { face_features_mesh2D[i].x, face_features_mesh2D[i].y };
-		rs2_deproject_pixel_to_point(tp, &realsense_intrinsics, pix, pixel_distance_in_meters);
-		glm::vec3 temp = { tp[0], tp[1], tp[2] };
+		rs2_deproject_pixel_to_point(tp, &realsense_intrinsics_color, pix, 2.f);
+		//float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features[i].x * dw / cw, face_features[i].y * dh / ch);
+
+		// Apply extrinsics to the origi
+		float target[3];
+		rs2_transform_point_to_point(target, &extrinsics_color_to_depth, tp);
+		float uv[2] = { 0, 0 };
+		rs2_project_point_to_pixel(uv, &realsense_intrinsics_depth, target);
+
+		float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(uv[0], uv[1]);
+
+		float result[3];
+		rs2_deproject_pixel_to_point(result, &realsense_intrinsics_depth, uv, pixel_distance_in_meters);
+
+		glm::vec3 temp = { result[0], result[1], result[2] };
 		face_features_mesh3D.emplace_back(temp);
-		
-
 	}
+
 	VertexBufferData(VAO_face_mesh3D, VBO_POS, face_features_mesh3D.size(), sizeof(glm::vec3), face_features_mesh3D.data(), GL_STREAM_DRAW);
+	VertexBufferData(VAO_face_mesh3D_paint, VBO_POS, face_features_mesh3D.size(), sizeof(glm::vec3), face_features_mesh3D.data(), GL_STREAM_DRAW);
 
 
+	//opengl좌표로 변환 (color frame과 같이 그려주는 mesh)
 	for (int i = 0; i < face_features_mesh2D.size(); i += 1) {
 		face_features_mesh2D[i].x = (face_features_mesh2D[i].x / (float)size.width - 0.5) * 2.f;
 		face_features_mesh2D[i].y = (face_features_mesh2D[i].y / (float)size.height - 0.5) * (-2.f);
 	}
 
 	VertexBufferData(VAO_face_mesh2D, VBO_POS, face_features_mesh2D.size(), sizeof(glm::vec2), face_features_mesh2D.data(), GL_STREAM_DRAW);
-	
-	// 3D mesh painting
-	std::vector<glm::vec3> ulgul;
-	ulgul.clear();
-	for (int i = 0; i < face_features_mesh3D.size() / 3; i++) {
-		ulgul.push_back(face_features_mesh3D[i]);
-		
-	}
-	VertexBufferData(VAO_face_mesh3D_paint, VBO_POS, ulgul.size(), sizeof(glm::vec3), ulgul.data(), GL_STREAM_DRAW);
 
 }
-
 
 void UserData::Cleanup_OpenGL() {
 	DestroyProgram(program_pointcloud);
@@ -579,5 +622,42 @@ void UserData::draw_delaunay(cv::Mat& img, cv::Subdiv2D& subdiv, cv::Scalar dela
 			line(img, pt[1], pt[2], delaunay_color, 1, cv::LINE_AA, 0);
 			line(img, pt[2], pt[0], delaunay_color, 1, cv::LINE_AA, 0);
 		}
+	}
+}
+
+
+void UserData::transform_2Dto3D(std::vector<glm::vec2>& point2D, std::vector<glm::vec3>& point3D) {
+	point3D.clear();
+	for (int i = 0; i < point2D.size(); i++) {
+		float tp[3] = { 0.f, 0.f, 0.f };
+		const float pix[2] = { point2D[i].x, point2D[i].y };
+		rs2_deproject_pixel_to_point(tp, &realsense_intrinsics_color, pix, 2.f);
+		//float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features[i].x * dw / cw, face_features[i].y * dh / ch);
+
+		// Apply extrinsics to the origi
+		float target[3];
+		rs2_transform_point_to_point(target, &extrinsics_color_to_depth, tp);
+		float uv[2] = { 0, 0 };
+		rs2_project_point_to_pixel(uv, &realsense_intrinsics_depth, target);
+		uv[0] -= 15.f;
+
+		if (0 <= i && i <= 5) {
+			uv[0] += 15.f;
+		}
+		else if (6 <= i && i <= 10) {
+			uv[1] -= 15.f;
+		}
+		else if (11 <= i && i <= 16) {
+			uv[0] -= 15.f;
+		}
+
+
+		float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(uv[0], uv[1]);
+
+		float result[3];
+		rs2_deproject_pixel_to_point(result, &realsense_intrinsics_depth, uv, pixel_distance_in_meters);
+
+		glm::vec3 temp = { result[0], result[1], result[2] };
+		point3D.emplace_back(temp);
 	}
 }

@@ -36,29 +36,28 @@ struct App : public UserData {
 
 		if (showFace) {
 			//render_face_pointcloud();
-			render_face_mesh3D();
-			//render_face_paint();
+			//render_face_mesh3D();
+			render_face_mesh3D_paint();
 		}
 		else {
 			if (!isColor) {
-				
 				render_pointcloud();
 				if (isDetect) {
 					//render_face_pointcloud();
-					render_face_mesh3D();
-					//render_face_paint();
+					//render_face_mesh3D();
+					render_face_mesh3D_paint();
 				}
 			}
 			else {
 				if (isDetect) { //찾은 얼굴이 있으면
-					render_face_boundary();
-					//render_face_mesh2D();
+					//render_face_boundary();
+					render_face_mesh2D();
 				}
 				render_color();
 			}
 		}
 
-		render_ImGui();
+		//render_ImGui();
 	}
 
 	// 이 함수는 상속받은 함수가 아니며 새로 추가된 함수이므로 override를 붙이지 않는다.
@@ -116,6 +115,7 @@ struct App : public UserData {
 	}
 
 	void render_face_pointcloud() {
+		glDisable(GL_DEPTH_TEST);
 		glPointSize(3.f);
 		glBindVertexArray(0);
 		glUseProgram(0);
@@ -125,10 +125,11 @@ struct App : public UserData {
 
 		UniformMatrix4fv(program_face_pointcloud, "MVP", 1, GL_FALSE, &VP[0][0]);
 		glDrawArrays(GL_POINTS, 0, VAO_face_pointcloud.count);
-
+		
 		glBindVertexArray(0);
 		glUseProgram(0);
 		glPointSize(3.f);
+		glEnable(GL_DEPTH_TEST);
 	}
 
 	void render_face_mesh2D() {
@@ -151,6 +152,7 @@ struct App : public UserData {
 	}
 
 	void render_face_mesh3D() {
+		glDisable(GL_DEPTH_TEST);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glBindVertexArray(0);
 		glUseProgram(0);
@@ -164,25 +166,27 @@ struct App : public UserData {
 		glBindVertexArray(0);
 		glUseProgram(0);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glEnable(GL_DEPTH_TEST);
 	}
 
-	void render_face_paint() {
-		// 3d mesh painting
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	void render_face_mesh3D_paint() {
+		glDisable(GL_DEPTH_TEST);
 		glBindVertexArray(0);
 		glUseProgram(0);
 
 		glUseProgram(program_face_mesh3D_paint);
 		glBindVertexArray(VAO_face_mesh3D_paint);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, tex.tex);
 
 		UniformMatrix4fv(program_face_mesh3D_paint, "MVP", 1, GL_FALSE, &VP[0][0]);
 		glDrawArrays(GL_TRIANGLES, 0, VAO_face_mesh3D_paint.count);
 
+		glBindTexture(GL_TEXTURE_2D, 0);
 		glBindVertexArray(0);
 		glUseProgram(0);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glEnable(GL_DEPTH_TEST);
 	}
-
 
 	void render_ImGui() {
 		// Rendering

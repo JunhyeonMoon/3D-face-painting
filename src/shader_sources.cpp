@@ -210,11 +210,13 @@ void main() {
 in vec2 vtex_coord;
 out vec4 fragcolor;
 
-//uniform sampler2D tex;
+uniform sampler2D tex;
 
 void main() {
-	//fragcolor = vec4(texture(tex, vtex_coord).rgb, 1);
-	fragcolor = vec4(1, 0, 0, 1);
+	if(texture(tex, vtex_coord).rgb == vec3(1, 1, 1))
+		discard;
+
+	fragcolor = vec4(texture(tex, vtex_coord).rgb, 1);
 }
 )";
 

@@ -25,10 +25,11 @@ struct UserData : public AppBase {
 	std::vector<glm::vec2> face_features;
 	std::vector<glm::vec2> face_features_mesh2D;
 	std::vector<glm::vec3> face_features_mesh3D;
-	
-	texture_info tx;
-	// depth ¿˙¿Â
-	std::vector<float> face_features_depth;
+	std::vector<glm::vec3> face_plane;
+	std::vector<glm::vec2> face_tex_coordinate;
+
+
+	texture_info tex;
 
 	// OpenGL Objects
 	Program program_pointcloud;
@@ -52,9 +53,17 @@ struct UserData : public AppBase {
 	Program program_face_mesh3D_paint;
 	VertexArray VAO_face_mesh3D_paint;
 
+
 	// RealSense
 	rs2::pipeline pipe;
-	rs2_intrinsics realsense_intrinsics;
+	rs2_intrinsics realsense_intrinsics_color;
+	rs2_intrinsics realsense_intrinsics_depth;
+	rs2::pipeline_profile selection;
+	rs2_extrinsics extrinsics_depth_to_color;
+	rs2_extrinsics extrinsics_color_to_depth;
+
+
+
 	rs2::pointcloud pc;
 	rs2::frameset frames;
 	rs2::frame depth;
@@ -100,6 +109,7 @@ struct UserData : public AppBase {
 	void draw_point(cv::Mat& img, cv::Point2f fp, cv::Scalar color);
 	// Draw delaunay triangles
 	void draw_delaunay(cv::Mat& img, cv::Subdiv2D& subdiv, cv::Scalar delaunay_color);
+	void transform_2Dto3D(std::vector<glm::vec2>&, std::vector<glm::vec3>&);
 
 };
 
