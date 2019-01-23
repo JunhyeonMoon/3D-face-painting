@@ -23,6 +23,7 @@ struct UserData : public AppBase {
 	std::vector<glm::vec3> face_inlier;
 	std::vector<glm::vec3> face_inlier_filtered;
 	std::vector<glm::vec2> face_features;
+	std::vector<glm::vec2> face_features_fixed;
 	std::vector<glm::vec2> face_features_mesh2D;
 	std::vector<glm::vec3> face_features_mesh3D;
 	std::vector<glm::vec3> face_plane;
@@ -52,6 +53,12 @@ struct UserData : public AppBase {
 
 	Program program_face_mesh3D_paint;
 	VertexArray VAO_face_mesh3D_paint;
+
+	// test¿ë
+	Program program_test;
+	VertexArray VAO_test;
+	Program program_test_2D;
+	VertexArray VAO_test_2D;
 
 
 	// RealSense

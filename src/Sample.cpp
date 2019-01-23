@@ -38,6 +38,7 @@ struct App : public UserData {
 			//render_face_pointcloud();
 			//render_face_mesh3D();
 			render_face_mesh3D_paint();
+			//render_test();
 		}
 		else {
 			if (!isColor) {
@@ -45,13 +46,15 @@ struct App : public UserData {
 				if (isDetect) {
 					//render_face_pointcloud();
 					//render_face_mesh3D();
-					render_face_mesh3D_paint();
+					//render_face_mesh3D_paint();
+					render_test();
 				}
 			}
 			else {
 				if (isDetect) { //찾은 얼굴이 있으면
-					//render_face_boundary();
-					render_face_mesh2D();
+					render_face_boundary();
+					//render_face_mesh2D();
+					//render_text2D();
 				}
 				render_color();
 			}
@@ -187,6 +190,40 @@ struct App : public UserData {
 		glUseProgram(0);
 		glEnable(GL_DEPTH_TEST);
 	}
+
+
+	void render_test() {
+		glDisable(GL_DEPTH_TEST);
+		glPointSize(3.f);
+		glBindVertexArray(0);
+		glUseProgram(0);
+
+		glUseProgram(program_test);
+		glBindVertexArray(VAO_test);
+
+		UniformMatrix4fv(program_test, "MVP", 1, GL_FALSE, &VP[0][0]);
+		glDrawArrays(GL_POINTS, 0, VAO_test.count);
+
+		glBindVertexArray(0);
+		glUseProgram(0);
+		glPointSize(3.f);
+		glEnable(GL_DEPTH_TEST);
+	}
+	void render_text2D() {
+		glBindVertexArray(0);
+		glUseProgram(0);
+
+		glUseProgram(program_test_2D);
+		glBindVertexArray(VAO_test_2D);
+
+		Uniform1f(program_test_2D, "aspectRatio", aspectRatio);
+		glDrawArrays(GL_POINTS, 0, VAO_test_2D.count);
+
+		glBindVertexArray(0);
+		glUseProgram(0);
+	}
+
+
 
 	void render_ImGui() {
 		// Rendering

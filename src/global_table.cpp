@@ -136,6 +136,41 @@ void UserData::Init_OpenGL(int width, int height) {
 	};
 	VAO_face_mesh3D_paint = CreateVertexArray(VBO_info_face_mesh3D_paint, attrib_info_face_mesh3D_paint);
 
+
+
+	// test
+
+	std::map<GLenum, const char*> test_shader_map = {
+		{ GL_VERTEX_SHADER, ShaderSource::GetSource("face_pointcloud_vs") },
+		{ GL_FRAGMENT_SHADER, ShaderSource::GetSource("face_pointcloud_fs") }
+	};
+	program_test = CreateProgram(test_shader_map);
+
+	std::vector<VBO_info> VBO_info_test = {
+		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec3) },
+	};
+	std::vector<attrib_info> attrib_info_test = {
+		{ 0, GL_FLOAT, 3, 0 },
+	};
+	VAO_test = CreateVertexArray(VBO_info_test, attrib_info_test);
+
+
+	//test2D
+	std::map<GLenum, const char*> test_2D_shader_map = {
+		{ GL_VERTEX_SHADER, ShaderSource::GetSource("face_boundary_vs") },
+		{ GL_FRAGMENT_SHADER, ShaderSource::GetSource("face_boundary_fs") }
+	};
+	program_test_2D = CreateProgram(test_2D_shader_map);
+
+	std::vector<VBO_info> VBO_info_test_2D = {
+		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec2) }
+	};
+	std::vector<attrib_info> attrib_info_test_2D = {
+		{ 0, GL_FLOAT, 2, 0 }
+	};
+	VAO_test_2D = CreateVertexArray(VBO_info_test_2D, attrib_info_test_2D);
+
+
 	//////OpenGL state
 	glPointSize(3.0f);
 	glEnable(GL_CULL_FACE); // 삼각형이 뒷면이 보이는 경우 그리지 않는다.
@@ -218,6 +253,25 @@ void UserData::Update_dlib() {
 			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
 			face_features.push_back(point);
 		}
+		
+		//안쪽으로 땡김
+		face_features_fixed.clear();
+		for (int i = 0; i < face_features.size(); i++) {
+			face_features_fixed.push_back(glm::vec2(face_features[i].x - 15.f, face_features[i].y));
+		}
+
+		for (int i = 0; i < face_features.size(); i++) {
+			if (0 <= i && i <= 5) {
+				face_features_fixed[i].x += 15.f;
+			}
+			else if (6 <= i && i <= 10) {
+				face_features_fixed[i].y -= 15.f;
+			}
+			else if (11 <= i && i <= 16) {
+				face_features_fixed[i].x -= 15.f;
+			}
+		}
+
 
 		//위의 texture좌표를 OpenGL좌표로 변환
 		std::vector<glm::vec3> face_features_gl;
@@ -232,37 +286,49 @@ void UserData::Update_dlib() {
 		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
 	
 		face_inlier.clear();
-		transform_2Dto3D(face_features, face_inlier);
+		transform_2Dto3D(face_features_fixed, face_inlier);
 		VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
 		
 		// 코 끝을 포함하는 평면 및 Vector를 구함
 		glm::vec3 lefteyes(0.f, 0.f, 0.f);
 		glm::vec3 righteyes(0.f, 0.f, 0.f);
-		for (int i = 17; i <= 21; i++) {
+		for (int i = 36; i <= 41; i++) {
 			lefteyes += face_inlier[i];
 		}
-		for (int i = 22; i <= 26; i++) {
+		for (int i = 42; i <= 47; i++) {
 			righteyes += face_inlier[i];
 		}
 
-		lefteyes /= 5.f; righteyes /= 5.f; // 왼쪽 눈의 평균 및 오른쪽 눈의 평균을 구함
-		
-		glm::vec3 horiaxis = glm::normalize(lefteyes - righteyes); //오른쪽 눈 평균 -> 왼쪽 눈 평균으로 향하는 Vector
-		glm::vec3 vertaxis = glm::normalize(glm::cross(glm::vec3(0.f, 0.f, 1.f), horiaxis)); //z축과 horaxis의 Cross Product
-		glm::vec3 norm = glm::normalize(glm::cross(vertaxis, horiaxis)); // vertaxis와 horaxis의 Cross Product: 코 끝을 지나는 평면의 Normal Vector
+		lefteyes /= 6.f; righteyes /= 6.f; // 왼쪽 눈의 평균 및 오른쪽 눈의 평균을 구함
+
+		glm::vec3 mouth(0.f, 0.f, 0.f);
+		for (int i = 48; i <= 54; i++) {
+			mouth += face_inlier[i];
+		}
+		mouth /= 7.f; // 입의 평균
+
+		glm::vec3 ri_li = righteyes - lefteyes;
+		glm::vec3 mth_li = mouth - lefteyes;
+		glm::vec3 norm = glm::normalize(glm::cross(mth_li, ri_li)); // 눈에서 입까지의 평면 - 법선벡터
+		glm::vec3 horiaxis = glm::normalize(ri_li);
+		glm::vec3 vertaxis = glm::normalize(glm::cross(norm, horiaxis)); // 기저 벡터
+
 		glm::vec3 nose = face_inlier[30]; //코 끝
 		face_plane.clear();
+
+
 
 		//코 끝을 지나는 평면상으로 얼굴의 모든 특징점을 올린다
 		//평면의 Normal Vector 를 축으로 하여 코 -> 각 특징점의 Vector를 회전
 		//printf("Face Inlier\n");
 		for (int i = 0; i < face_inlier.size(); i++) {
-			//printf("X: %d, Y: %d\n", face_inlier[i].x, face_inlier[i].y);
+			// printf("X: %d, Y: %d\n", face_inlier[i].x, face_inlier[i].y);
+			
 			if (i == 30) {
 				face_plane.push_back(face_inlier[30]);
 				continue;
 			}
-
+			 
 			glm::vec3 a = face_inlier[i] - face_inlier[30]; //코 -> 특징점 Vector
 			float b_size = abs(glm::dot(norm, a)); //음수로 나오는 문제 -> 절대값 취해서 양수로 바꿔줌.
 			//printf("b_size: %f\n", b_size);
@@ -271,7 +337,25 @@ void UserData::Update_dlib() {
 			glm::vec3 d =  glm::length(a) * c; // a Vector의 길이를 곱해줌
 			glm::vec3 od = face_inlier[30] + d; // 카메라에서 평면상의 점 까지의 Vector
 			face_plane.push_back(od);
+
+			//glm::vec3 a = face_inlier[i] - nose; // 코에서 특징점까지
+			//float angle = glm::dot(norm, a)/glm::length(a); // norm과 a 사이의 cos(각)
+			//angle = glm::acos(angle); // radian 
+			//angle -= glm::half_pi<float>(); // a와 평면 사이의 각
+			//glm::mat4 rotM = glm::rotate(angle, vertaxis); // 회전 행렬
+			//glm::mat3 rot_M = rotM;
+			//glm::vec3 b = rot_M * a;
+			//face_plane.push_back(nose+b);
+
 		}
+
+		//for (int i = 0; i < face_plane.size(); i++) {
+		//	float t = norm.x*(nose.x - face_plane[i].x) + norm.y*(nose.y - face_plane[i].y) + norm.z*(nose.z - face_plane[i].z);
+		//	printf("%dth : %f\n", i, t);
+		//}
+
+
+		VertexBufferData(VAO_test, VBO_POS, face_plane.size(), sizeof(glm::vec3), face_plane.data(), GL_STREAM_DRAW);
 
 		face_tex_coordinate.clear();
 		float x_max = -10000.f;
@@ -285,10 +369,24 @@ void UserData::Update_dlib() {
 		//Depth 정보(?)를 얻어오지 못하는 경우 Nan으로 표시됨.
 		for (int i = 0; i < face_plane.size(); i++) {
 			glm::vec3 v = face_plane[i] - nose;
-			float xcoord = glm::distance(v, vertaxis);
-			float ycoord = glm::distance(v, horiaxis);
+			glm::vec3 vn = glm::normalize(glm::cross(horiaxis, v));
+			float theta = glm::acos(glm::dot(v, horiaxis) / glm::length(v));
+			float xcoord = 0.f;
+			float ycoord = 0.f;
 
-			//std::cout << "Xcoord: " << xcoord << ", Ycoord: " << ycoord << std::endl;
+			if (i == 30) {
+				xcoord = 0.f;
+				ycoord = 0.f;
+			}
+			else if (glm::acos(glm::dot(vn, norm)) <= glm::pi<float>()/2.f) {
+				xcoord = glm::length(v) * glm::cos(theta);
+				ycoord = glm::length(v) * glm::sin(theta);
+			}
+			else {
+				xcoord = glm::length(v) * glm::cos(theta);
+				ycoord = -glm::length(v) * glm::sin(theta);
+			}
+			
 
 			if (x_max < xcoord) {
 				x_max = xcoord;
@@ -299,16 +397,21 @@ void UserData::Update_dlib() {
 			if (x_min > xcoord) {
 				x_min = xcoord;
 			}
-			if (y_min > xcoord) {
-				y_min = xcoord;
+			if (y_min > ycoord) {
+				y_min = ycoord;
 			}
-			face_tex_coordinate.push_back(glm::vec2(xcoord-(1.f),ycoord-(1.f)));
+			face_tex_coordinate.push_back(glm::vec2(xcoord,ycoord));
 		}
-
 		for (int i = 0; i < face_tex_coordinate.size(); i++) {
-			face_tex_coordinate[i].x = (face_tex_coordinate[i].x - x_min) / x_max;
-			face_tex_coordinate[i].y = (face_tex_coordinate[i].y - y_min) / y_max;
+			face_tex_coordinate[i].x = (face_tex_coordinate[i].x - x_min) / (x_max + glm::abs(x_min));
+			face_tex_coordinate[i].y = (face_tex_coordinate[i].y - y_min) / (y_max + glm::abs(y_min));
 		}
+		//for (int i = 0; i < face_tex_coordinate.size(); i++) {
+		//	face_tex_coordinate[i].x = (face_tex_coordinate[i].x - 0.5f) * 2.f;
+		//	face_tex_coordinate[i].y = (face_tex_coordinate[i].y - 0.5f) * 2.f;
+		//
+		//}
+		//VertexBufferData(VAO_test_2D, VBO_POS, face_tex_coordinate.size(), sizeof(glm::vec2), face_tex_coordinate.data(), GL_STREAM_DRAW);
 	}
 	else {
 		isDetect = false;
@@ -417,78 +520,9 @@ void UserData::Update_Mesh() {
 	// Create a vector of points.
 	std::vector<cv::Point2f> points;
 
+	points.clear();
 
-	/**************알맞은 텍스쳐 좌표를 주기 위한 번거로운 과정***************/
-	std::vector<glm::vec2> face_features_mesh2D_temp;
-	face_features_mesh2D_temp.clear();
-	// Read in the points from a text file
-	for (int i = 0; i < face_features.size(); i++)
-		points.push_back(cv::Point2f(face_features[i].x, face_features[i].y));
-
-	// Insert points into subdiv
-	for (std::vector<cv::Point2f>::iterator it = points.begin(); it != points.end(); it++)
-	{
-		subdiv_temp.insert(*it);
-	}
-	// Draw delaunay triangles
-	//draw_delaunay(img, subdiv, delaunay_color);
-	std::vector<cv::Vec6f> triangleList_temp;
-	subdiv_temp.getTriangleList(triangleList_temp);
-	std::vector<cv::Point> pt_temp(3);
-
-	for (size_t i = 0; i < triangleList_temp.size(); i++)
-	{
-		cv::Vec6f t = triangleList_temp[i];
-		pt_temp[0] = cv::Point(cvRound(t[0]), cvRound(t[1]));
-		pt_temp[2] = cv::Point(cvRound(t[2]), cvRound(t[3]));
-		pt_temp[1] = cv::Point(cvRound(t[4]), cvRound(t[5]));
-
-		glm::vec2 temp[3];
-		for (int j = 0; j < 3; j += 1) {
-			temp[j].x = pt_temp[j].x;
-			temp[j].y = pt_temp[j].y;
-			face_features_mesh2D_temp.push_back(temp[j]);
-		}
-	}
-
-	std::vector<glm::vec2> face_texcoord;
-	face_texcoord.clear();
-	for (int i = 0; i < face_features_mesh2D_temp.size(); i++) {
-		for (int j = 0; j < face_features.size(); j++) {
-			if (face_features_mesh2D_temp[i] == face_features[j]) {
-				face_texcoord.push_back(face_tex_coordinate[j]);
-				break;
-			}
-		}
-	}
-
-	//for (int i = 0; i < face_texcoord.size(); i++) {
-	//	printf("%f, %f\n", face_texcoord[i].x, face_texcoord[i].y);
-	//}
-
-	VertexBufferData(VAO_face_mesh3D_paint, VBO_TEX, face_texcoord.size(), sizeof(glm::vec2), face_texcoord.data(), GL_STREAM_DRAW);
-	/*******************************************/
-
-	std::vector<glm::vec2> face_features_fixed;
-	face_features_fixed.clear();
-	for (int i = 0; i < face_features.size(); i++) {
-		face_features_fixed.push_back(glm::vec2(face_features[i].x - 13.f, face_features[i].y));
-	}
-
-	for (int i = 0; i < face_features.size(); i++) {
-		if (0 <= i && i <= 5) {
-			face_features_fixed[i].x += 15.f;
-		}
-		else if (6 <= i && i <= 10) {
-			face_features_fixed[i].y -= 15.f;
-		}
-		else if (11 <= i && i <= 16) {
-			face_features_fixed[i].x -= 15.f;
-		}
-	}
-
-
-	// Read in the points from a text file
+	// Get Points
 	for (int i = 0; i < face_features_fixed.size(); i++)
 		points.push_back(cv::Point2f(face_features_fixed[i].x, face_features_fixed[i].y));
 
@@ -543,7 +577,18 @@ void UserData::Update_Mesh() {
 
 	VertexBufferData(VAO_face_mesh3D, VBO_POS, face_features_mesh3D.size(), sizeof(glm::vec3), face_features_mesh3D.data(), GL_STREAM_DRAW);
 	VertexBufferData(VAO_face_mesh3D_paint, VBO_POS, face_features_mesh3D.size(), sizeof(glm::vec3), face_features_mesh3D.data(), GL_STREAM_DRAW);
-
+	
+	std::vector<glm::vec2> face_texcoord;
+	face_texcoord.clear();
+	for (int i = 0; i < face_features_mesh2D.size(); i++) {
+		for (int j = 0; j < face_features_fixed.size(); j++) {
+			if (face_features_mesh2D[i] == face_features_fixed[j]) {
+				face_texcoord.push_back(face_tex_coordinate[j]);
+				break;
+			}
+		}
+	}
+	VertexBufferData(VAO_face_mesh3D_paint, VBO_TEX, face_texcoord.size(), sizeof(glm::vec2), face_texcoord.data(), GL_STREAM_DRAW);
 
 	//opengl좌표로 변환 (color frame과 같이 그려주는 mesh)
 	for (int i = 0; i < face_features_mesh2D.size(); i += 1) {
@@ -652,18 +697,6 @@ void UserData::transform_2Dto3D(std::vector<glm::vec2>& point2D, std::vector<glm
 		rs2_transform_point_to_point(target, &extrinsics_color_to_depth, tp);
 		float uv[2] = { 0, 0 };
 		rs2_project_point_to_pixel(uv, &realsense_intrinsics_depth, target);
-		uv[0] -= 15.f;
-
-		if (0 <= i && i <= 5) {
-			uv[0] += 15.f;
-		}
-		else if (6 <= i && i <= 10) {
-			uv[1] -= 15.f;
-		}
-		else if (11 <= i && i <= 16) {
-			uv[0] -= 15.f;
-		}
-
 
 		float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(uv[0], uv[1]);
 
