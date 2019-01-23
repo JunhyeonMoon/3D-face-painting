@@ -235,6 +235,7 @@ void UserData::Update_dlib() {
 		transform_2Dto3D(face_features, face_inlier);
 		VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
 		
+		// 코 끝을 포함하는 평면 및 Vector를 구함
 		glm::vec3 lefteyes(0.f, 0.f, 0.f);
 		glm::vec3 righteyes(0.f, 0.f, 0.f);
 		for (int i = 17; i <= 21; i++) {
@@ -244,25 +245,31 @@ void UserData::Update_dlib() {
 			righteyes += face_inlier[i];
 		}
 
-		lefteyes /= 5.f; righteyes /= 5.f;
+		lefteyes /= 5.f; righteyes /= 5.f; // 왼쪽 눈의 평균 및 오른쪽 눈의 평균을 구함
 		
-		glm::vec3 horiaxis = glm::normalize(lefteyes - righteyes);
-		glm::vec3 vertaxis = glm::normalize(glm::cross(glm::vec3(0.f, 0.f, 1.f), horiaxis));
-		glm::vec3 norm = glm::normalize(glm::cross(vertaxis, horiaxis));
-		glm::vec3 nose = face_inlier[30];
+		glm::vec3 horiaxis = glm::normalize(lefteyes - righteyes); //오른쪽 눈 평균 -> 왼쪽 눈 평균으로 향하는 Vector
+		glm::vec3 vertaxis = glm::normalize(glm::cross(glm::vec3(0.f, 0.f, 1.f), horiaxis)); //z축과 horaxis의 Cross Product
+		glm::vec3 norm = glm::normalize(glm::cross(vertaxis, horiaxis)); // vertaxis와 horaxis의 Cross Product: 코 끝을 지나는 평면의 Normal Vector
+		glm::vec3 nose = face_inlier[30]; //코 끝
 		face_plane.clear();
+
+		//코 끝을 지나는 평면상으로 얼굴의 모든 특징점을 올린다
+		//평면의 Normal Vector 를 축으로 하여 코 -> 각 특징점의 Vector를 회전
+		//printf("Face Inlier\n");
 		for (int i = 0; i < face_inlier.size(); i++) {
+			//printf("X: %d, Y: %d\n", face_inlier[i].x, face_inlier[i].y);
 			if (i == 30) {
 				face_plane.push_back(face_inlier[30]);
 				continue;
 			}
 
-			glm::vec3 a = face_inlier[i] - face_inlier[30];
-			float b_size = glm::dot(norm, a);
-			glm::vec3 b = b_size * norm;
-			glm::vec3 c = glm::normalize(a + b);
-			glm::vec3 d =  glm::length(a) * c;
-			glm::vec3 od = face_inlier[30] + d;
+			glm::vec3 a = face_inlier[i] - face_inlier[30]; //코 -> 특징점 Vector
+			float b_size = abs(glm::dot(norm, a)); //음수로 나오는 문제 -> 절대값 취해서 양수로 바꿔줌.
+			//printf("b_size: %f\n", b_size);
+			glm::vec3 b = b_size * norm; //평면의 Normal Vector와 같은 방향이면서, 평면과 특징점 사이의 거리만큼의 크기를 갖는 Vector
+			glm::vec3 c = glm::normalize(a + b); //a Vector를 평면상에 정사영시킴
+			glm::vec3 d =  glm::length(a) * c; // a Vector의 길이를 곱해줌
+			glm::vec3 od = face_inlier[30] + d; // 카메라에서 평면상의 점 까지의 Vector
 			face_plane.push_back(od);
 		}
 
@@ -272,10 +279,16 @@ void UserData::Update_dlib() {
 		float x_min = 10000.f;
 		float y_min = 10000.f;
 
+		//printf("===============================\n");
+
+		//코 끝의 좌표는 (1, 1)로 확인됨
+		//Depth 정보(?)를 얻어오지 못하는 경우 Nan으로 표시됨.
 		for (int i = 0; i < face_plane.size(); i++) {
 			glm::vec3 v = face_plane[i] - nose;
 			float xcoord = glm::distance(v, vertaxis);
 			float ycoord = glm::distance(v, horiaxis);
+
+			//std::cout << "Xcoord: " << xcoord << ", Ycoord: " << ycoord << std::endl;
 
 			if (x_max < xcoord) {
 				x_max = xcoord;
@@ -289,10 +302,10 @@ void UserData::Update_dlib() {
 			if (y_min > xcoord) {
 				y_min = xcoord;
 			}
-			face_tex_coordinate.push_back(glm::vec2(xcoord,ycoord));
+			face_tex_coordinate.push_back(glm::vec2(xcoord-(1.f),ycoord-(1.f)));
 		}
 
-		for (int i = 0; i < face_plane.size(); i++) {
+		for (int i = 0; i < face_tex_coordinate.size(); i++) {
 			face_tex_coordinate[i].x = (face_tex_coordinate[i].x - x_min) / x_max;
 			face_tex_coordinate[i].y = (face_tex_coordinate[i].y - y_min) / y_max;
 		}
