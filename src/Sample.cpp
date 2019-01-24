@@ -21,8 +21,10 @@ struct App : public UserData {
 	void update(float time_elapsed) override {
 		Update_RealSense();
 		Update_ImGui();
-		Update_dlib();
-		if (isDetect) { Update_Mesh(); }
+		if (isDetect) {
+			if (isTrack)
+				Update_dlib();
+		}
 		trackball.update(time_elapsed);
 		VP = trackball.projection_matrix()*trackball.view_matrix();
 
@@ -46,14 +48,14 @@ struct App : public UserData {
 				if (isDetect) {
 					//render_face_pointcloud();
 					//render_face_mesh3D();
-					//render_face_mesh3D_paint();
-					render_test();
+					render_face_mesh3D_paint();
+					//render_test();
 				}
 			}
 			else {
 				if (isDetect) { //찾은 얼굴이 있으면
-					render_face_boundary();
-					//render_face_mesh2D();
+					//render_face_boundary();
+					render_face_mesh2D();
 					//render_text2D();
 				}
 				render_color();
@@ -164,6 +166,7 @@ struct App : public UserData {
 		glBindVertexArray(VAO_face_mesh3D);
 
 		UniformMatrix4fv(program_face_mesh3D, "MVP", 1, GL_FALSE, &VP[0][0]);
+		UniformMatrix4fv(program_face_mesh3D, "TM", 1, GL_FALSE, &TM[0][0]);
 		glDrawArrays(GL_TRIANGLES, 0, VAO_face_mesh3D.count);
 
 		glBindVertexArray(0);
@@ -183,6 +186,7 @@ struct App : public UserData {
 		glBindTexture(GL_TEXTURE_2D, tex.tex);
 
 		UniformMatrix4fv(program_face_mesh3D_paint, "MVP", 1, GL_FALSE, &VP[0][0]);
+		UniformMatrix4fv(program_face_mesh3D_paint, "TM", 1, GL_FALSE, &TM[0][0]);
 		glDrawArrays(GL_TRIANGLES, 0, VAO_face_mesh3D_paint.count);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
@@ -284,6 +288,16 @@ struct App : public UserData {
 			case GLFW_KEY_K:
 			case GLFW_KEY_L:
 			case GLFW_KEY_M:
+				Capture_Point();
+				if (isDetect) {
+					Update_Mesh();
+					isTrack = !isTrack;
+
+				}
+				else {
+					printf("fail to detect face\n");
+				}
+				break;
 			case GLFW_KEY_N:
 			case GLFW_KEY_O:
 			case GLFW_KEY_P:

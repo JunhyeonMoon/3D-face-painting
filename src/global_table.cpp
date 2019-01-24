@@ -8,7 +8,7 @@
 
 void UserData::Init_OpenGL(int width, int height) {
 
-	tex.data = stbi_load("image2.png", &tex.width, &tex.height, &tex.n, 4);
+	tex.data = stbi_load("image1.png", &tex.width, &tex.height, &tex.n, 4);
 	tex.tex = CreateTexture2D(tex.width, tex.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex.data);
 	stbi_image_free(tex.data);
 
@@ -272,22 +272,8 @@ void UserData::Update_dlib() {
 			}
 		}
 
-
-		//위의 texture좌표를 OpenGL좌표로 변환
-		std::vector<glm::vec3> face_features_gl;
-		face_features_gl.clear();
-		
-		int w = realsense_tex.width;
-		int h = realsense_tex.height;
-		for (int i = 0; i < face_features.size(); i++) {
-			glm::vec3 temp = { 2 * (face_features[i].x / (float)w - 0.5), -2 * (face_features[i].y / (float)h - 0.5) , 0.f };
-			face_features_gl.push_back(temp);
-		}
-		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
-	
 		face_inlier.clear();
 		transform_2Dto3D(face_features_fixed, face_inlier);
-		VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
 		
 		// 코 끝을 포함하는 평면 및 Vector를 구함
 		glm::vec3 lefteyes(0.f, 0.f, 0.f);
@@ -314,6 +300,135 @@ void UserData::Update_dlib() {
 		glm::vec3 vertaxis = glm::normalize(glm::cross(norm, horiaxis)); // 기저 벡터
 
 		glm::vec3 nose = face_inlier[30]; //코 끝
+		//printf("norm : %f, %f, %f\n", norm.x, norm.y, norm.z);
+		//printf("horiaxis : %f, %f, %f\n", horiaxis.x, horiaxis.y, horiaxis.z);
+		//printf("vertaxis : %f, %f, %f\n", vertaxis.x, vertaxis.y, vertaxis.z);
+
+		
+		float angle_norm = glm::angle(init_norm, norm);
+		float angle_vert = glm::angle(init_vert, vertaxis); 
+		float angle_hori = glm::angle(init_hori, horiaxis); 
+		
+		//float angle_norm = glm::acos(glm::dot(init_norm, norm));
+		//float angle_vert = glm::acos(glm::dot(init_vert, vertaxis));
+		//float angle_hori = glm::acos(glm::dot(init_hori, horiaxis));
+
+		Rn = glm::rotate(angle_norm, glm::normalize(glm::cross(init_norm, norm)));
+		Rv = glm::rotate(angle_vert, glm::normalize(glm::cross(init_vert, vertaxis)));
+		Rh = glm::rotate(angle_hori, glm::normalize(glm::cross(init_hori, horiaxis)));
+
+		TN = glm::translate(nose - init_nose);
+		
+		glm::mat4 translate_to_origin = glm::translate(-nose);
+		glm::mat4 translate_to_world = glm::translate(nose);
+
+		TM = TN * translate_to_world * Rn * Rv * Rh * translate_to_origin;
+		//printf("%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n\n\n",
+		//	TN[0][0], TN[1][0], TN[2][0], TN[3][0],
+		//	TN[0][1], TN[1][1], TN[2][1], TN[3][1],
+		//	TN[0][2], TN[1][2], TN[2][2], TN[3][2],
+		//	TN[0][3], TN[1][3], TN[2][3], TN[3][3]
+		//);
+
+	}
+	else {
+		isDetect = false;
+	}
+
+}
+
+
+void UserData::Capture_Point() {
+	dlib::array2d<dlib::rgb_pixel> img;
+
+	cv::Mat frame2(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+	dlib::assign_image(img, dlib::cv_image<dlib::bgr_pixel>(frame2));
+	// Make the image larger so we can detect small faces.
+	//pyramid_up(img);
+
+	// Now tell the face detector to give us a list of bounding boxes
+	// around all the faces in the image.
+	std::vector<dlib::rectangle> dets = detector(img);
+	//std::cout << "Number of faces detected: " << dets.size() << std::endl;
+
+	if (dets.size() > 0) {
+		isDetect = true;
+		dlib::full_object_detection shape;
+		shape = sp(img, dets[0]);
+		face_features.clear();
+
+		for (int i = 0; i < shape.num_parts(); i++) {
+			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
+			face_features.push_back(point);
+		}
+
+		//안쪽으로 땡김
+		face_features_fixed.clear();
+		for (int i = 0; i < face_features.size(); i++) {
+			face_features_fixed.push_back(glm::vec2(face_features[i].x - 15.f, face_features[i].y));
+		}
+
+		for (int i = 0; i < face_features.size(); i++) {
+			if (0 <= i && i <= 5) {
+				face_features_fixed[i].x += 15.f;
+			}
+			else if (6 <= i && i <= 10) {
+				face_features_fixed[i].y -= 15.f;
+			}
+			else if (11 <= i && i <= 16) {
+				face_features_fixed[i].x -= 15.f;
+			}
+		}
+
+
+		//위의 texture좌표를 OpenGL좌표로 변환
+		std::vector<glm::vec3> face_features_gl;
+		face_features_gl.clear();
+
+		int w = realsense_tex.width;
+		int h = realsense_tex.height;
+		for (int i = 0; i < face_features.size(); i++) {
+			glm::vec3 temp = { 2 * (face_features[i].x / (float)w - 0.5), -2 * (face_features[i].y / (float)h - 0.5) , 0.f };
+			face_features_gl.push_back(temp);
+		}
+		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
+
+		face_inlier.clear();
+		transform_2Dto3D(face_features_fixed, face_inlier);
+		VertexBufferData(VAO_face_pointcloud, VBO_POS, face_inlier.size(), sizeof(glm::vec3), face_inlier.data(), GL_STREAM_DRAW);
+
+		// 코 끝을 포함하는 평면 및 Vector를 구함
+		glm::vec3 lefteyes(0.f, 0.f, 0.f);
+		glm::vec3 righteyes(0.f, 0.f, 0.f);
+		for (int i = 36; i <= 41; i++) {
+			lefteyes += face_inlier[i];
+		}
+		for (int i = 42; i <= 47; i++) {
+			righteyes += face_inlier[i];
+		}
+
+		lefteyes /= 6.f; righteyes /= 6.f; // 왼쪽 눈의 평균 및 오른쪽 눈의 평균을 구함
+
+		glm::vec3 mouth(0.f, 0.f, 0.f);
+		for (int i = 48; i <= 54; i++) {
+			mouth += face_inlier[i];
+		}
+		mouth /= 7.f; // 입의 평균
+
+		glm::vec3 ri_li = righteyes - lefteyes;
+		glm::vec3 mth_li = mouth - lefteyes;
+		glm::vec3 norm = glm::normalize(glm::cross(mth_li, ri_li)); // 눈에서 입까지의 평면 - 법선벡터
+		glm::vec3 horiaxis = glm::normalize(ri_li);
+		glm::vec3 vertaxis = glm::normalize(glm::cross(norm, horiaxis)); // 기저 벡터
+
+		init_norm = norm;
+		init_hori = horiaxis;
+		init_vert = vertaxis;
+
+		glm::vec3 nose = face_inlier[30]; //코 끝
+		
+		init_nose = nose; // 법선벡터 저장
+		
 		face_plane.clear();
 
 
@@ -323,18 +438,18 @@ void UserData::Update_dlib() {
 		//printf("Face Inlier\n");
 		for (int i = 0; i < face_inlier.size(); i++) {
 			// printf("X: %d, Y: %d\n", face_inlier[i].x, face_inlier[i].y);
-			
+
 			if (i == 30) {
 				face_plane.push_back(face_inlier[30]);
 				continue;
 			}
-			 
+
 			glm::vec3 a = face_inlier[i] - face_inlier[30]; //코 -> 특징점 Vector
 			float b_size = abs(glm::dot(norm, a)); //음수로 나오는 문제 -> 절대값 취해서 양수로 바꿔줌.
 			//printf("b_size: %f\n", b_size);
 			glm::vec3 b = b_size * norm; //평면의 Normal Vector와 같은 방향이면서, 평면과 특징점 사이의 거리만큼의 크기를 갖는 Vector
 			glm::vec3 c = glm::normalize(a + b); //a Vector를 평면상에 정사영시킴
-			glm::vec3 d =  glm::length(a) * c; // a Vector의 길이를 곱해줌
+			glm::vec3 d = glm::length(a) * c; // a Vector의 길이를 곱해줌
 			glm::vec3 od = face_inlier[30] + d; // 카메라에서 평면상의 점 까지의 Vector
 			face_plane.push_back(od);
 
@@ -357,11 +472,11 @@ void UserData::Update_dlib() {
 
 		VertexBufferData(VAO_test, VBO_POS, face_plane.size(), sizeof(glm::vec3), face_plane.data(), GL_STREAM_DRAW);
 
-		face_tex_coordinate.clear();
-		float x_max = -10000.f;
-		float y_max = -10000.f;
-		float x_min = 10000.f;
-		float y_min = 10000.f;
+		face_tex_coord_buf.clear();
+		float xmax = -10000.f;
+		float ymax = -10000.f;
+		float xmin = 10000.f;
+		float ymin = 10000.f;
 
 		//printf("===============================\n");
 
@@ -378,7 +493,7 @@ void UserData::Update_dlib() {
 				xcoord = 0.f;
 				ycoord = 0.f;
 			}
-			else if (glm::acos(glm::dot(vn, norm)) <= glm::pi<float>()/2.f) {
+			else if (glm::acos(glm::dot(vn, norm)) <= glm::pi<float>() / 2.f) {
 				xcoord = glm::length(v) * glm::cos(theta);
 				ycoord = glm::length(v) * glm::sin(theta);
 			}
@@ -386,38 +501,42 @@ void UserData::Update_dlib() {
 				xcoord = glm::length(v) * glm::cos(theta);
 				ycoord = -glm::length(v) * glm::sin(theta);
 			}
-			
 
-			if (x_max < xcoord) {
-				x_max = xcoord;
+
+			if (xmax < xcoord) {
+				xmax = xcoord;
 			}
-			if (y_max < ycoord) {
-				y_max = ycoord;
+			if (ymax < ycoord) {
+				ymax = ycoord;
 			}
-			if (x_min > xcoord) {
-				x_min = xcoord;
+			if (xmin > xcoord) {
+				xmin = xcoord;
 			}
-			if (y_min > ycoord) {
-				y_min = ycoord;
+			if (ymin > ycoord) {
+				ymin = ycoord;
 			}
-			face_tex_coordinate.push_back(glm::vec2(xcoord,ycoord));
+			face_tex_coord_buf.push_back(glm::vec2(xcoord, ycoord));
 		}
-		for (int i = 0; i < face_tex_coordinate.size(); i++) {
-			face_tex_coordinate[i].x = (face_tex_coordinate[i].x - x_min) / (x_max + glm::abs(x_min));
-			face_tex_coordinate[i].y = (face_tex_coordinate[i].y - y_min) / (y_max + glm::abs(y_min));
+
+		for (int i = 0; i < face_tex_coord_buf.size(); i++) {
+			face_tex_coord_buf[i].x = (face_tex_coord_buf[i].x - xmin) / (xmax + glm::abs(xmin));
+			face_tex_coord_buf[i].y = (face_tex_coord_buf[i].y - ymin) / (ymax + glm::abs(ymin));
 		}
-		//for (int i = 0; i < face_tex_coordinate.size(); i++) {
-		//	face_tex_coordinate[i].x = (face_tex_coordinate[i].x - 0.5f) * 2.f;
-		//	face_tex_coordinate[i].y = (face_tex_coordinate[i].y - 0.5f) * 2.f;
+
+		//for (int i = 0; i < face_tex_coord_buf.size(); i++) {
+		//	face_tex_coord_buf[i].x = (face_tex_coord_buf[i].x - 0.5f) * 2.f;
+		//	face_tex_coord_buf[i].y = (face_tex_coord_buf[i].y - 0.5f) * 2.f;
 		//
 		//}
-		//VertexBufferData(VAO_test_2D, VBO_POS, face_tex_coordinate.size(), sizeof(glm::vec2), face_tex_coordinate.data(), GL_STREAM_DRAW);
+		//VertexBufferData(VAO_test_2D, VBO_POS, face_tex_coord_buf.size(), sizeof(glm::vec2), face_tex_coord_buf.data(), GL_STREAM_DRAW);
 	}
 	else {
 		isDetect = false;
 	}
 
 }
+
+
 #include <stdlib.h>
 
 void UserData::Update_RealSense() {
@@ -583,7 +702,7 @@ void UserData::Update_Mesh() {
 	for (int i = 0; i < face_features_mesh2D.size(); i++) {
 		for (int j = 0; j < face_features_fixed.size(); j++) {
 			if (face_features_mesh2D[i] == face_features_fixed[j]) {
-				face_texcoord.push_back(face_tex_coordinate[j]);
+				face_texcoord.push_back(face_tex_coord_buf[j]);
 				break;
 			}
 		}
@@ -599,6 +718,7 @@ void UserData::Update_Mesh() {
 	VertexBufferData(VAO_face_mesh2D, VBO_POS, face_features_mesh2D.size(), sizeof(glm::vec2), face_features_mesh2D.data(), GL_STREAM_DRAW);
 
 }
+
 
 void UserData::Cleanup_OpenGL() {
 	DestroyProgram(program_pointcloud);

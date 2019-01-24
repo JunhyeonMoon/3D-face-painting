@@ -170,9 +170,10 @@ void main() {
 layout(location = 0) in vec3 pos;
 
 uniform mat4 MVP;
+uniform mat4 TM;
 
 void main() {		
-	gl_Position = MVP*vec4(pos, 1);
+	gl_Position = MVP*TM*vec4(pos, 1);
 } 
 )";
 
@@ -196,9 +197,10 @@ layout(location = 1) in vec2 tex_coord;
 out vec2 vtex_coord;
 
 uniform mat4 MVP;
+uniform mat4 TM;
 
 void main() {		
-	gl_Position = MVP*vec4(pos, 1);
+	gl_Position = MVP*TM*vec4(pos, 1);
 	vtex_coord = tex_coord;
 } 
 )";

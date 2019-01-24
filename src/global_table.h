@@ -28,7 +28,18 @@ struct UserData : public AppBase {
 	std::vector<glm::vec3> face_features_mesh3D;
 	std::vector<glm::vec3> face_plane;
 	std::vector<glm::vec2> face_tex_coordinate;
-
+	
+	std::vector<glm::vec2> face_tex_coord_buf; // capture해서 저장된 feature point --> mesh 생성
+	glm::vec3 init_nose; // 처음 코
+	glm::vec3 init_vert;
+	glm::vec3 init_hori;
+	glm::vec3 init_norm; // capture해서 저장할 normal vector
+	glm::mat4 Rv;
+	glm::mat4 Rh;
+	glm::mat4 Rn;
+	glm::mat4 TN; // 움직여진 코
+	glm::mat4 TM; // tracking matrix
+	bool isTrack = false;
 
 	texture_info tex;
 
@@ -105,6 +116,8 @@ struct UserData : public AppBase {
 	void Update_ImGui();
 	void Update_dlib();
 	void Update_Mesh();
+
+	void Capture_Point();
 
 	void Cleanup_OpenGL();
 	void Cleanup_RealSense();
