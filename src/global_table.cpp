@@ -321,9 +321,9 @@ void UserData::Track_face() {
 		//float angle_vert = glm::acos(glm::dot(init_vert, vertaxis));
 		//float angle_hori = glm::acos(glm::dot(init_hori, horiaxis));
 
-		Rn = glm::rotate(angle_norm, glm::normalize(glm::cross(init_norm, norm)));
-		Rv = glm::rotate(angle_vert, glm::normalize(glm::cross(init_vert, vertaxis)));
-		Rh = glm::rotate(angle_hori, glm::normalize(glm::cross(init_hori, horiaxis)));
+		Rn = glm::rotate(angle_norm / 2.f, glm::normalize(glm::cross(init_norm, norm)));
+		Rv = glm::rotate(angle_vert / 2.f, glm::normalize(glm::cross(init_vert, vertaxis)));
+		Rh = glm::rotate(angle_hori / 2.f, glm::normalize(glm::cross(init_hori, horiaxis)));
 
 		TN = glm::translate(nose - init_nose);
 		//TN = glm::translate(pos - init_pos);
@@ -332,7 +332,7 @@ void UserData::Track_face() {
 		glm::mat4 translate_to_world = glm::translate(nose);
 
 		//TM = translate_to_world * TN * Rn * Rv * Rh * translate_to_origin;
-		TM = translate_to_world * Rn * Rv * Rh * TN * translate_to_origin;
+		TM = translate_to_world * Rh * Rv * Rn * TN * translate_to_origin;
 
 		//printf("%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n\n\n",
 		//	TN[0][0], TN[1][0], TN[2][0], TN[3][0],
