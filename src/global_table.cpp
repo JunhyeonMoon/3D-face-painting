@@ -8,7 +8,7 @@
 
 void UserData::Init_OpenGL(int width, int height) {
 
-	tex.data = stbi_load("image1.png", &tex.width, &tex.height, &tex.n, 4);
+	tex.data = stbi_load("hi.png", &tex.width, &tex.height, &tex.n, 4);
 	tex.tex = CreateTexture2D(tex.width, tex.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex.data);
 	stbi_image_free(tex.data);
 
@@ -230,7 +230,7 @@ void UserData::Init_dlib() {
 	dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> sp;
 }
 
-void UserData::Update_dlib() {
+void UserData::Track_face() {
 	dlib::array2d<dlib::rgb_pixel> img;
 	
 	cv::Mat frame1(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
@@ -292,6 +292,14 @@ void UserData::Update_dlib() {
 			mouth += face_inlier[i];
 		}
 		mouth /= 7.f; // ¿‘¿« ∆Ú±’
+		
+		
+
+		glm::vec3 pos= { 0.f, 0.f, 0.f };
+		for (int i = 31; i <= 35; i++) {
+			pos += face_inlier[i];
+		}
+		pos /= 5.f;
 
 		glm::vec3 ri_li = righteyes - lefteyes;
 		glm::vec3 mth_li = mouth - lefteyes;
@@ -318,11 +326,14 @@ void UserData::Update_dlib() {
 		Rh = glm::rotate(angle_hori, glm::normalize(glm::cross(init_hori, horiaxis)));
 
 		TN = glm::translate(nose - init_nose);
-		
+		//TN = glm::translate(pos - init_pos);
+
 		glm::mat4 translate_to_origin = glm::translate(-nose);
 		glm::mat4 translate_to_world = glm::translate(nose);
 
-		TM = TN * translate_to_world * Rn * Rv * Rh * translate_to_origin;
+		//TM = translate_to_world * TN * Rn * Rv * Rh * translate_to_origin;
+		TM = translate_to_world * Rn * Rv * Rh * TN * translate_to_origin;
+
 		//printf("%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n\n\n",
 		//	TN[0][0], TN[1][0], TN[2][0], TN[3][0],
 		//	TN[0][1], TN[1][1], TN[2][1], TN[3][1],
@@ -391,7 +402,7 @@ void UserData::Capture_Point() {
 			glm::vec3 temp = { 2 * (face_features[i].x / (float)w - 0.5), -2 * (face_features[i].y / (float)h - 0.5) , 0.f };
 			face_features_gl.push_back(temp);
 		}
-		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
+		//VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
 
 		face_inlier.clear();
 		transform_2Dto3D(face_features_fixed, face_inlier);
@@ -414,6 +425,12 @@ void UserData::Capture_Point() {
 			mouth += face_inlier[i];
 		}
 		mouth /= 7.f; // ¿‘¿« ∆Ú±’
+
+		init_pos = { 0.f, 0.f, 0.f };
+		for (int i = 31; i <= 35; i++) {
+			init_pos += face_inlier[i];
+		}
+		init_pos /= 5.f;
 
 		glm::vec3 ri_li = righteyes - lefteyes;
 		glm::vec3 mth_li = mouth - lefteyes;
@@ -618,6 +635,48 @@ void UserData::Update_ImGui() {
 			show_another_window = false;
 		ImGui::End();
 	}
+}
+
+void UserData::Update_dlib() {
+	dlib::array2d<dlib::rgb_pixel> img;
+
+	cv::Mat frame1(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+	dlib::assign_image(img, dlib::cv_image<dlib::bgr_pixel>(frame1));
+	// Make the image larger so we can detect small faces.
+	//pyramid_up(img);
+
+	// Now tell the face detector to give us a list of bounding boxes
+	// around all the faces in the image.
+	std::vector<dlib::rectangle> dets = detector(img);
+	//std::cout << "Number of faces detected: " << dets.size() << std::endl;
+
+	if (dets.size() > 0) {
+		isDetect = true;
+		dlib::full_object_detection shape;
+		shape = sp(img, dets[0]);
+		face_features.clear();
+
+		for (int i = 0; i < shape.num_parts(); i++) {
+			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
+			face_features.push_back(point);
+		}
+
+		std::vector<glm::vec3> face_features_gl;
+		face_features_gl.clear();
+		int w = realsense_tex.width;
+		int h = realsense_tex.height;
+		for (int i = 0; i < face_features.size(); i++) {
+			glm::vec3 temp = { 2.f * (face_features[i].x/(float)w - 0.5f), -2.f * (face_features[i].y/(float)h - 0.5f), 0.f };
+			face_features_gl.push_back(temp);
+		}
+		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
+
+	}
+	else {
+		isDetect = false;
+	}
+
+
 }
 
 void UserData::Update_Mesh() {

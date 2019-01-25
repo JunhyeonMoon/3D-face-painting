@@ -215,7 +215,7 @@ out vec4 fragcolor;
 uniform sampler2D tex;
 
 void main() {
-	if(texture(tex, vtex_coord).rgb == vec3(1, 1, 1))
+	if(texture(tex, vtex_coord).a <= 0.5)
 		discard;
 
 	fragcolor = vec4(texture(tex, vtex_coord).rgb, 1);

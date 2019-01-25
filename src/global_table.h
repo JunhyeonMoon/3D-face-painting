@@ -30,6 +30,7 @@ struct UserData : public AppBase {
 	std::vector<glm::vec2> face_tex_coordinate;
 	
 	std::vector<glm::vec2> face_tex_coord_buf; // capture해서 저장된 feature point --> mesh 생성
+	glm::vec3 init_pos; // 처음 모든 점의 평균위치
 	glm::vec3 init_nose; // 처음 코
 	glm::vec3 init_vert;
 	glm::vec3 init_hori;
@@ -117,6 +118,7 @@ struct UserData : public AppBase {
 	void Update_dlib();
 	void Update_Mesh();
 
+	void Track_face();
 	void Capture_Point();
 
 	void Cleanup_OpenGL();

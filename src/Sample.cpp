@@ -21,9 +21,9 @@ struct App : public UserData {
 	void update(float time_elapsed) override {
 		Update_RealSense();
 		Update_ImGui();
-		if (isDetect) {
-			if (isTrack)
-				Update_dlib();
+		Update_dlib();
+		if (isDetect && isTrack) {
+			Track_face();
 		}
 		trackball.update(time_elapsed);
 		VP = trackball.projection_matrix()*trackball.view_matrix();
@@ -38,8 +38,8 @@ struct App : public UserData {
 
 		if (showFace) {
 			//render_face_pointcloud();
-			//render_face_mesh3D();
-			render_face_mesh3D_paint();
+			render_face_mesh3D();
+			//render_face_mesh3D_paint();
 			//render_test();
 		}
 		else {
@@ -47,15 +47,15 @@ struct App : public UserData {
 				render_pointcloud();
 				if (isDetect) {
 					//render_face_pointcloud();
-					//render_face_mesh3D();
-					render_face_mesh3D_paint();
+					render_face_mesh3D();
+					//render_face_mesh3D_paint();
 					//render_test();
 				}
 			}
 			else {
 				if (isDetect) { //찾은 얼굴이 있으면
-					//render_face_boundary();
-					render_face_mesh2D();
+					render_face_boundary();
+					//render_face_mesh2D();
 					//render_text2D();
 				}
 				render_color();
