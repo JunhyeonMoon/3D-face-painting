@@ -8,9 +8,18 @@
 
 void UserData::Init_OpenGL(int width, int height) {
 
-	tex.data = stbi_load("hi.png", &tex.width, &tex.height, &tex.n, 4);
-	tex.tex = CreateTexture2D(tex.width, tex.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex.data);
-	stbi_image_free(tex.data);
+	tex1.data = stbi_load("comedy.png", &tex1.width, &tex1.height, &tex1.n, 4);
+	tex1.tex = CreateTexture2D(tex1.width, tex1.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex1.data);
+	stbi_image_free(tex1.data);
+
+	//tex2.data = stbi_load("image1.png", &tex2.width, &tex2.height, &tex2.n, 4);
+	//tex2.tex = CreateTexture2D(tex2.width, tex2.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex2.data);
+	//stbi_image_free(tex2.data);
+	//
+	//tex3.data = stbi_load("hi.png", &tex3.width, &tex3.height, &tex3.n, 4);
+	//tex3.tex = CreateTexture2D(tex3.width, tex3.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex3.data);
+	//stbi_image_free(tex3.data);
+
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	aspectRatio = (float)width / (float)height;
@@ -136,39 +145,6 @@ void UserData::Init_OpenGL(int width, int height) {
 	};
 	VAO_face_mesh3D_paint = CreateVertexArray(VBO_info_face_mesh3D_paint, attrib_info_face_mesh3D_paint);
 
-
-
-	// test
-
-	std::map<GLenum, const char*> test_shader_map = {
-		{ GL_VERTEX_SHADER, ShaderSource::GetSource("face_pointcloud_vs") },
-		{ GL_FRAGMENT_SHADER, ShaderSource::GetSource("face_pointcloud_fs") }
-	};
-	program_test = CreateProgram(test_shader_map);
-
-	std::vector<VBO_info> VBO_info_test = {
-		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec3) },
-	};
-	std::vector<attrib_info> attrib_info_test = {
-		{ 0, GL_FLOAT, 3, 0 },
-	};
-	VAO_test = CreateVertexArray(VBO_info_test, attrib_info_test);
-
-
-	//test2D
-	std::map<GLenum, const char*> test_2D_shader_map = {
-		{ GL_VERTEX_SHADER, ShaderSource::GetSource("face_boundary_vs") },
-		{ GL_FRAGMENT_SHADER, ShaderSource::GetSource("face_boundary_fs") }
-	};
-	program_test_2D = CreateProgram(test_2D_shader_map);
-
-	std::vector<VBO_info> VBO_info_test_2D = {
-		{ VBO_POS, 0, nullptr, 0, sizeof(glm::vec2) }
-	};
-	std::vector<attrib_info> attrib_info_test_2D = {
-		{ 0, GL_FLOAT, 2, 0 }
-	};
-	VAO_test_2D = CreateVertexArray(VBO_info_test_2D, attrib_info_test_2D);
 
 
 	//////OpenGL state
@@ -308,38 +284,21 @@ void UserData::Track_face() {
 		glm::vec3 vertaxis = glm::normalize(glm::cross(norm, horiaxis)); // 기저 벡터
 
 		glm::vec3 nose = face_inlier[30]; //코 끝
-		//printf("norm : %f, %f, %f\n", norm.x, norm.y, norm.z);
-		//printf("horiaxis : %f, %f, %f\n", horiaxis.x, horiaxis.y, horiaxis.z);
-		//printf("vertaxis : %f, %f, %f\n", vertaxis.x, vertaxis.y, vertaxis.z);
-
 		
 		float angle_norm = glm::angle(init_norm, norm);
 		float angle_vert = glm::angle(init_vert, vertaxis); 
 		float angle_hori = glm::angle(init_hori, horiaxis); 
-		
-		//float angle_norm = glm::acos(glm::dot(init_norm, norm));
-		//float angle_vert = glm::acos(glm::dot(init_vert, vertaxis));
-		//float angle_hori = glm::acos(glm::dot(init_hori, horiaxis));
 
 		Rn = glm::rotate(angle_norm / 2.f, glm::normalize(glm::cross(init_norm, norm)));
 		Rv = glm::rotate(angle_vert / 2.f, glm::normalize(glm::cross(init_vert, vertaxis)));
 		Rh = glm::rotate(angle_hori / 2.f, glm::normalize(glm::cross(init_hori, horiaxis)));
 
 		TN = glm::translate(nose - init_nose);
-		//TN = glm::translate(pos - init_pos);
 
 		glm::mat4 translate_to_origin = glm::translate(-nose);
 		glm::mat4 translate_to_world = glm::translate(nose);
 
-		//TM = translate_to_world * TN * Rn * Rv * Rh * translate_to_origin;
 		TM = translate_to_world * Rh * Rv * Rn * TN * translate_to_origin;
-
-		//printf("%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n\n\n",
-		//	TN[0][0], TN[1][0], TN[2][0], TN[3][0],
-		//	TN[0][1], TN[1][1], TN[2][1], TN[3][1],
-		//	TN[0][2], TN[1][2], TN[2][2], TN[3][2],
-		//	TN[0][3], TN[1][3], TN[2][3], TN[3][3]
-		//);
 
 	}
 	else {
@@ -390,19 +349,6 @@ void UserData::Capture_Point() {
 				face_features_fixed[i].x -= 15.f;
 			}
 		}
-
-
-		//위의 texture좌표를 OpenGL좌표로 변환
-		std::vector<glm::vec3> face_features_gl;
-		face_features_gl.clear();
-
-		int w = realsense_tex.width;
-		int h = realsense_tex.height;
-		for (int i = 0; i < face_features.size(); i++) {
-			glm::vec3 temp = { 2 * (face_features[i].x / (float)w - 0.5), -2 * (face_features[i].y / (float)h - 0.5) , 0.f };
-			face_features_gl.push_back(temp);
-		}
-		//VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
 
 		face_inlier.clear();
 		transform_2Dto3D(face_features_fixed, face_inlier);
@@ -470,32 +416,12 @@ void UserData::Capture_Point() {
 			glm::vec3 od = face_inlier[30] + d; // 카메라에서 평면상의 점 까지의 Vector
 			face_plane.push_back(od);
 
-			//glm::vec3 a = face_inlier[i] - nose; // 코에서 특징점까지
-			//float angle = glm::dot(norm, a)/glm::length(a); // norm과 a 사이의 cos(각)
-			//angle = glm::acos(angle); // radian 
-			//angle -= glm::half_pi<float>(); // a와 평면 사이의 각
-			//glm::mat4 rotM = glm::rotate(angle, vertaxis); // 회전 행렬
-			//glm::mat3 rot_M = rotM;
-			//glm::vec3 b = rot_M * a;
-			//face_plane.push_back(nose+b);
-
 		}
-
-		//for (int i = 0; i < face_plane.size(); i++) {
-		//	float t = norm.x*(nose.x - face_plane[i].x) + norm.y*(nose.y - face_plane[i].y) + norm.z*(nose.z - face_plane[i].z);
-		//	printf("%dth : %f\n", i, t);
-		//}
-
-
-		VertexBufferData(VAO_test, VBO_POS, face_plane.size(), sizeof(glm::vec3), face_plane.data(), GL_STREAM_DRAW);
-
 		face_tex_coord_buf.clear();
 		float xmax = -10000.f;
 		float ymax = -10000.f;
 		float xmin = 10000.f;
-		float ymin = 10000.f;
-
-		//printf("===============================\n");
+		float ymin = 10000.f;;
 
 		//코 끝의 좌표는 (1, 1)로 확인됨
 		//Depth 정보(?)를 얻어오지 못하는 경우 Nan으로 표시됨.
@@ -512,11 +438,11 @@ void UserData::Capture_Point() {
 			}
 			else if (glm::acos(glm::dot(vn, norm)) <= glm::pi<float>() / 2.f) {
 				xcoord = glm::length(v) * glm::cos(theta);
-				ycoord = glm::length(v) * glm::sin(theta);
+				ycoord = -glm::length(v) * glm::sin(theta);
 			}
 			else {
 				xcoord = glm::length(v) * glm::cos(theta);
-				ycoord = -glm::length(v) * glm::sin(theta);
+				ycoord = glm::length(v) * glm::sin(theta);
 			}
 
 
@@ -539,13 +465,6 @@ void UserData::Capture_Point() {
 			face_tex_coord_buf[i].x = (face_tex_coord_buf[i].x - xmin) / (xmax + glm::abs(xmin));
 			face_tex_coord_buf[i].y = (face_tex_coord_buf[i].y - ymin) / (ymax + glm::abs(ymin));
 		}
-
-		//for (int i = 0; i < face_tex_coord_buf.size(); i++) {
-		//	face_tex_coord_buf[i].x = (face_tex_coord_buf[i].x - 0.5f) * 2.f;
-		//	face_tex_coord_buf[i].y = (face_tex_coord_buf[i].y - 0.5f) * 2.f;
-		//
-		//}
-		//VertexBufferData(VAO_test_2D, VBO_POS, face_tex_coord_buf.size(), sizeof(glm::vec2), face_tex_coord_buf.data(), GL_STREAM_DRAW);
 	}
 	else {
 		isDetect = false;
@@ -627,14 +546,10 @@ void UserData::Update_ImGui() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 	
-	if (show_another_window)
-	{
-		ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-		ImGui::Text("Hello from another window!");
-		if (ImGui::Button("Close Me"))
-			show_another_window = false;
-		ImGui::End();
-	}
+	Update_ImGui_MainMenu();
+	Update_ImGui_SideBar();
+	Update_ImGui_Console();
+	
 }
 
 void UserData::Update_dlib() {
@@ -671,6 +586,62 @@ void UserData::Update_dlib() {
 		}
 		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
 
+		// Read in the image.
+		cv::Mat img(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+
+		// Keep a copy around
+		cv::Mat img_orig = img.clone();
+
+		// Rectangle to be used with Subdiv2D
+		cv::Size size = img.size();
+		cv::Rect rect(0, 0, size.width, size.height);
+
+		// Create an instance of Subdiv2D
+		cv::Subdiv2D subdiv(rect);
+		
+		// Create a vector of points.
+		std::vector<cv::Point2f> points;
+
+		points.clear();
+
+		// Get Points
+		for (int i = 0; i < face_features.size(); i++)
+			points.push_back(cv::Point2f(face_features[i].x, face_features[i].y));
+
+		// Insert points into subdiv
+		for (std::vector<cv::Point2f>::iterator it = points.begin(); it != points.end(); it++)
+		{
+			subdiv.insert(*it);
+		}
+		// Draw delaunay triangles
+		//draw_delaunay(img, subdiv, delaunay_color);
+		std::vector<cv::Vec6f> triangleList;
+		subdiv.getTriangleList(triangleList);
+		std::vector<cv::Point> pt(3);
+		face_features_mesh2D.clear();
+
+		for (size_t i = 0; i < triangleList.size(); i++)
+		{
+			cv::Vec6f t = triangleList[i];
+			pt[0] = cv::Point(cvRound(t[0]), cvRound(t[1]));
+			pt[2] = cv::Point(cvRound(t[2]), cvRound(t[3]));
+			pt[1] = cv::Point(cvRound(t[4]), cvRound(t[5]));
+
+			glm::vec2 temp[3];
+			for (int j = 0; j < 3; j += 1) {
+				temp[j].x = pt[j].x;
+				temp[j].y = pt[j].y;
+				face_features_mesh2D.push_back(temp[j]);
+			}
+		}
+		//opengl좌표로 변환 (color frame과 같이 그려주는 mesh)
+		for (int i = 0; i < face_features_mesh2D.size(); i += 1) {
+			face_features_mesh2D[i].x = (face_features_mesh2D[i].x / (float)size.width - 0.5) * 2.f;
+			face_features_mesh2D[i].y = (face_features_mesh2D[i].y / (float)size.height - 0.5) * (-2.f);
+		}
+
+		VertexBufferData(VAO_face_mesh2D, VBO_POS, face_features_mesh2D.size(), sizeof(glm::vec2), face_features_mesh2D.data(), GL_STREAM_DRAW);
+
 	}
 	else {
 		isDetect = false;
@@ -693,7 +664,6 @@ void UserData::Update_Mesh() {
 
 	// Create an instance of Subdiv2D
 	cv::Subdiv2D subdiv(rect);
-	cv::Subdiv2D subdiv_temp(rect);
 
 	// Create a vector of points.
 	std::vector<cv::Point2f> points;
@@ -795,6 +765,11 @@ void UserData::Cleanup_OpenGL() {
 	DestroyProgram(program_face_mesh2D);
 	DestroyVertexArray(VAO_face_mesh2D);
 
+	DestroyProgram(program_face_mesh3D);
+	DestroyVertexArray(VAO_face_mesh3D);
+
+	DestroyProgram(program_face_mesh3D_paint);
+	DestroyVertexArray(VAO_face_mesh3D_paint);
 }
 
 
@@ -886,3 +861,118 @@ void UserData::transform_2Dto3D(std::vector<glm::vec2>& point2D, std::vector<glm
 		point3D.emplace_back(temp);
 	}
 }
+
+void UserData::Update_ImGui_MainMenu() {
+	const ImVec2 padding(width, height/50.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, padding);
+	ImGui::BeginMainMenuBar();
+	MainMenu_size = ImGui::GetWindowSize();
+	ImGui::Text("Welcome to 3D face painting");
+	ImGui::EndMainMenuBar();
+	ImGui::PopStyleVar();
+}
+
+void UserData::Update_ImGui_SideBar() {
+	//ImGui::PushStyleVar();
+	SideBar_size.x = (float)width / 8.f;
+	SideBar_size.y = float(height) - MainMenu_size.y;
+	const ImVec2 windowPos(0.f, MainMenu_size.y);
+	const ImVec2 windowSize(SideBar_size);
+	ImGui::SetWindowPos("SideBar", windowPos);
+	ImGui::SetWindowSize("SideBar", windowSize);
+	ImGui::Begin("SideBar");
+	
+	if(ImGui::Button("Capture")){
+		Capture_Point();
+		if (isDetect) {
+			Update_Mesh();
+			isTrack = !isTrack;
+			Console_msg.push_back("detection success");
+		}
+		else {
+			Console_msg.push_back("fail to detect face");
+		}
+	}
+
+	if (ImGui::TreeNode("Color")) {
+		if(ImGui::Checkbox("Color", &isColor)) {
+			if (isColor) {
+				Console_msg.push_back("Start color frame");
+			}
+			else {
+				Console_msg.push_back("Stop color frame");
+			}
+		}
+		
+		if (ImGui::Checkbox("Feature points", &isColor_FeaturePoints)) {
+			if (isColor_FeaturePoints) {
+				Console_msg.push_back("Start color frame feature points");
+			}
+			else {
+				Console_msg.push_back("Stop color frame feature points");
+			}
+		}
+		if (ImGui::Checkbox("Mesh", &isColor_Mesh)) {
+			if (isColor_Mesh) {
+				Console_msg.push_back("Start color frame mesh");
+			}
+			else {
+				Console_msg.push_back("Stop color frame mesh");
+			}
+		}
+		ImGui::TreePop();
+	}
+	if (ImGui::TreeNode("Depth")) {
+		if (ImGui::Checkbox("Pointcloud", &isDepth_PointCloud)) {
+			if (isDepth_PointCloud) {
+ 				Console_msg.push_back("Start depth frame pointcloud");
+			}
+			else {
+				Console_msg.push_back("Stop depth frame pointcloud");
+			}
+		}
+		if (ImGui::Checkbox("Feature points", &isDepth_FeaturePoints)) {
+			if (isDepth_FeaturePoints) {
+				Console_msg.push_back("Start depth frame feature points");
+			}
+			else {
+				Console_msg.push_back("Stop depth frame feature points");
+			}
+		}
+		if (ImGui::Checkbox("Mesh", &isDepth_Mesh)) {
+			if (isDepth_Mesh) {
+				Console_msg.push_back("Start depth frame mesh");
+			}
+			else {
+				Console_msg.push_back("Stop depth frame mesh");
+			}
+		}
+		if (ImGui::TreeNode("Painting")) {
+			if (ImGui::Checkbox("texture1", &isDepth_Paint)) { //클릭되면 true 리턴
+				
+			}
+		}
+	}
+	ImGui::End();
+	//ImGui::PopStyleVar();
+}
+
+void UserData::Update_ImGui_Console() {
+	//ImGui::PushStyleVar();
+	Console_size.x = (float)width - SideBar_size.x;
+	Console_size.y = (float)height*0.2f;
+
+	const ImVec2 windowPos(SideBar_size.x, (float)height*0.8f);
+	const ImVec2 windowSize(Console_size);
+	
+	ImGui::SetWindowPos("Console", windowPos);
+	ImGui::SetWindowSize("Console", windowSize);
+	ImGui::Begin("Console");
+
+	for (int i = 0; i < Console_msg.size(); i++) {
+		ImGui::Text(Console_msg[i].data());
+	}
+	ImGui::End();
+	//ImGui::PopStyleVar();
+}
+

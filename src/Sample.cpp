@@ -31,44 +31,90 @@ struct App : public UserData {
 	}
 
 	void render(float time_elapsed) override {
-		//glClearColor(1.f, 1.f, 1.f, 1.f);
-		glClearColor(0.f, 0.f, 0.f, 1.f);
+		glClearColor(1.f, 1.f, 1.f, 1.f);
+		//glClearColor(0.f, 0.f, 0.f, 1.f);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		if (showFace) {
-			//render_face_pointcloud();
-			render_face_mesh3D();
-			//render_face_mesh3D_paint();
-			//render_test();
+		bool c = isColor || isColor_FeaturePoints || isColor_Mesh;
+		bool d = isDepth_PointCloud || isDepth_FeaturePoints || isDepth_Mesh || isDepth_Paint;
+
+		if (c && d) {
+			setLeft();
+			render2D();
+			setRight();
+			render3D();
+		}
+		else if(c) {
+			setCenter();
+			render2D();
 		}
 		else {
-			if (!isColor) {
-				render_pointcloud();
-				if (isDetect) {
-					//render_face_pointcloud();
-					render_face_mesh3D();
-					//render_face_mesh3D_paint();
-					//render_test();
-				}
-			}
-			else {
-				if (isDetect) { //찾은 얼굴이 있으면
-					render_face_boundary();
-					//render_face_mesh2D();
-					//render_text2D();
-				}
-				render_color();
-			}
-		}
+			setCenter();
+			render3D();
+		}	
 
-		//render_ImGui();
+		render_ImGui();
 	}
 
 	// 이 함수는 상속받은 함수가 아니며 새로 추가된 함수이므로 override를 붙이지 않는다.
 	// 또한, 클래스 선언 내에 있기 때문에 render보다 먼저 선언될 필요가 없다.
 	// 간단한 함수는 이곳에서 선언하고 내용이 복잡한 함수는 UserData (global_table.h)에서
 	// 선언하여 사용하는 것이 좋다.
+	void setLeft() {
+		//왼쪽반
+		glm::vec2 s((float)width - SideBar_size.x, (float)height - MainMenu_size.y - Console_size.y);
+		s.x /= 2.f;
+		glm::vec2 p(SideBar_size.x, Console_size.y);
+		glViewport(p.x, p.y, s.x, s.y);
+		aspectRatio = s.x / s.y;
+	}
+	void setRight() {
+		//오른쪽반
+		glm::vec2 s((float)width - SideBar_size.x, (float)height - MainMenu_size.y - Console_size.y);
+		s.x /= 2.f;
+		glm::vec2 p(SideBar_size.x + s.x, Console_size.y);
+		glViewport(p.x, p.y, s.x, s.y);
+		aspectRatio = s.x / s.y;
+	}
+	void setCenter() {
+		//전체
+		glm::vec2 s((float)width - SideBar_size.x, (float)height - MainMenu_size.y - Console_size.y);
+		glm::vec2 p(SideBar_size.x, Console_size.y);
+		glViewport(p.x, p.y, s.x, s.y);
+		aspectRatio = s.x / s.y;
+	}
+	void render2D() {
+		if (isColor) {
+			render_color();
+		}
+		if (isDetect) {
+			if (isColor_FeaturePoints) {
+				render_face_boundary();
+			}
+			if (isColor_Mesh) {
+				render_face_mesh2D();
+			}
+		}
+	}
+	void render3D() {
+		if (isDepth_PointCloud) {
+			render_pointcloud();
+		}
+		if (isDetect) {
+			if (isDepth_FeaturePoints) {
+				render_face_pointcloud();
+			}
+			if (isDepth_Mesh) {
+				render_face_mesh3D();
+			}
+			if (isDepth_Paint) {
+				render_face_mesh3D_paint();
+			}
+		}
+	}
+
+
 	void render_pointcloud() {
 		glBindVertexArray(0);
 		glUseProgram(0);
@@ -106,6 +152,7 @@ struct App : public UserData {
 	}
 
 	void render_face_boundary() {
+		glDisable(GL_DEPTH_TEST);
 		glBindVertexArray(0);
 		glUseProgram(0);
 
@@ -117,6 +164,7 @@ struct App : public UserData {
 
 		glBindVertexArray(0);
 		glUseProgram(0);
+		glEnable(GL_DEPTH_TEST);
 	}
 
 	void render_face_pointcloud() {
@@ -139,6 +187,7 @@ struct App : public UserData {
 
 	void render_face_mesh2D() {
 		//glFrontFace(GL_CW);
+		glDisable(GL_DEPTH_TEST);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glBindVertexArray(0);
 		glUseProgram(0);
@@ -153,6 +202,7 @@ struct App : public UserData {
 		glBindVertexArray(0);
 		glUseProgram(0);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glEnable(GL_DEPTH_TEST);
 		//glFrontFace(GL_CCW);
 	}
 
@@ -183,7 +233,7 @@ struct App : public UserData {
 		glUseProgram(program_face_mesh3D_paint);
 		glBindVertexArray(VAO_face_mesh3D_paint);
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, tex.tex);
+		glBindTexture(GL_TEXTURE_2D, tex1.tex);
 
 		UniformMatrix4fv(program_face_mesh3D_paint, "MVP", 1, GL_FALSE, &VP[0][0]);
 		UniformMatrix4fv(program_face_mesh3D_paint, "TM", 1, GL_FALSE, &TM[0][0]);
@@ -194,39 +244,6 @@ struct App : public UserData {
 		glUseProgram(0);
 		glEnable(GL_DEPTH_TEST);
 	}
-
-
-	void render_test() {
-		glDisable(GL_DEPTH_TEST);
-		glPointSize(3.f);
-		glBindVertexArray(0);
-		glUseProgram(0);
-
-		glUseProgram(program_test);
-		glBindVertexArray(VAO_test);
-
-		UniformMatrix4fv(program_test, "MVP", 1, GL_FALSE, &VP[0][0]);
-		glDrawArrays(GL_POINTS, 0, VAO_test.count);
-
-		glBindVertexArray(0);
-		glUseProgram(0);
-		glPointSize(3.f);
-		glEnable(GL_DEPTH_TEST);
-	}
-	void render_text2D() {
-		glBindVertexArray(0);
-		glUseProgram(0);
-
-		glUseProgram(program_test_2D);
-		glBindVertexArray(VAO_test_2D);
-
-		Uniform1f(program_test_2D, "aspectRatio", aspectRatio);
-		glDrawArrays(GL_POINTS, 0, VAO_test_2D.count);
-
-		glBindVertexArray(0);
-		glUseProgram(0);
-	}
-
 
 
 	void render_ImGui() {
@@ -271,7 +288,6 @@ struct App : public UserData {
 				break;
 
 			case GLFW_KEY_SPACE:
-				showFace = !showFace;
 				printf("space key is pressed.\n");
 				break;
 
@@ -288,16 +304,6 @@ struct App : public UserData {
 			case GLFW_KEY_K:
 			case GLFW_KEY_L:
 			case GLFW_KEY_M:
-				Capture_Point();
-				if (isDetect) {
-					Update_Mesh();
-					isTrack = !isTrack;
-
-				}
-				else {
-					printf("fail to detect face\n");
-				}
-				break;
 			case GLFW_KEY_N:
 			case GLFW_KEY_O:
 			case GLFW_KEY_P:

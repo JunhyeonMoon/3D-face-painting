@@ -18,13 +18,23 @@ struct UserData : public AppBase {
 	glm::mat4 VP;
 	glm::mat4 T;
 	bool isDetect = false;
+	bool isTrack = false;
 	bool isColor = false;
-	bool showFace = false;
+	bool isColor_FeaturePoints = false;;
+	bool isColor_Mesh = false;
+	bool isDepth = false;
+	bool isDepth_FeaturePoints = false;;
+	bool isDepth_Mesh = false;
+	bool isDepth_Paint = false;
+	bool isDepth_PointCloud = false;
+	std::vector<std::string> Console_msg;
+	
 	std::vector<glm::vec3> face_inlier;
 	std::vector<glm::vec3> face_inlier_filtered;
 	std::vector<glm::vec2> face_features;
 	std::vector<glm::vec2> face_features_fixed;
 	std::vector<glm::vec2> face_features_mesh2D;
+	std::vector<glm::vec2> face_features_mesh2D_update;
 	std::vector<glm::vec3> face_features_mesh3D;
 	std::vector<glm::vec3> face_plane;
 	std::vector<glm::vec2> face_tex_coordinate;
@@ -40,9 +50,11 @@ struct UserData : public AppBase {
 	glm::mat4 Rn;
 	glm::mat4 TN; // 움직여진 코
 	glm::mat4 TM; // tracking matrix
-	bool isTrack = false;
+	
+	texture_info tex1;
+	texture_info tex2;
+	texture_info tex3;
 
-	texture_info tex;
 
 	// OpenGL Objects
 	Program program_pointcloud;
@@ -66,12 +78,6 @@ struct UserData : public AppBase {
 	Program program_face_mesh3D_paint;
 	VertexArray VAO_face_mesh3D_paint;
 
-	// test용
-	Program program_test;
-	VertexArray VAO_test;
-	Program program_test_2D;
-	VertexArray VAO_test_2D;
-
 
 	// RealSense
 	rs2::pipeline pipe;
@@ -80,8 +86,6 @@ struct UserData : public AppBase {
 	rs2::pipeline_profile selection;
 	rs2_extrinsics extrinsics_depth_to_color;
 	rs2_extrinsics extrinsics_color_to_depth;
-
-
 
 	rs2::pointcloud pc;
 	rs2::frameset frames;
@@ -101,6 +105,9 @@ struct UserData : public AppBase {
 
 	//ImGui
 	bool show_another_window = true;
+	ImVec2 MainMenu_size;
+	ImVec2 SideBar_size;
+	ImVec2 Console_size;
 	
 	//dlib
 	dlib::frontal_face_detector detector;
@@ -115,6 +122,11 @@ struct UserData : public AppBase {
 
 	void Update_RealSense();
 	void Update_ImGui();
+	void Update_ImGui_MainMenu();
+	void Update_ImGui_SideBar();
+	void Update_ImGui_Console();
+
+
 	void Update_dlib();
 	void Update_Mesh();
 
