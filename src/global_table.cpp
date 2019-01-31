@@ -8,7 +8,7 @@
 
 void UserData::Init_OpenGL(int width, int height) {
 
-	tex1.data = stbi_load("comedy.png", &tex1.width, &tex1.height, &tex1.n, 4);
+	tex1.data = stbi_load("KakaoTalk_20190131_170726987.png", &tex1.width, &tex1.height, &tex1.n, 4);
 	tex1.tex = CreateTexture2D(tex1.width, tex1.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex1.data);
 	stbi_image_free(tex1.data);
 

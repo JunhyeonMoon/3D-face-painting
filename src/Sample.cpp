@@ -68,9 +68,9 @@ struct App : public UserData {
 		setCenter();
 		render_pointcloud();
 		if (isFindFace) {
-			render_face_mesh3D();
-			if (isDepth_Paint)
-				render_face_mesh3D_paint();
+			//render_face_mesh3D();
+			//if (isDepth_Paint)
+			render_face_mesh3D_paint();
 		}
 		render_ImGui();
 	}
