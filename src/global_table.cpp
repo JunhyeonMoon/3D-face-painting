@@ -211,25 +211,10 @@ void UserData::Track_face() {
 	
 	cv::Mat frame1(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
 	dlib::assign_image(img, dlib::cv_image<dlib::bgr_pixel>(frame1));
-	// Make the image larger so we can detect small faces.
-	//pyramid_up(img);
-
-	// Now tell the face detector to give us a list of bounding boxes
-	// around all the faces in the image.
-	std::vector<dlib::rectangle> dets = detector(img);
-	//std::cout << "Number of faces detected: " << dets.size() << std::endl;
 	
-	if (dets.size() > 0) {
+	if (get2DFaceFeaturePoints(img, face_features)) {
 		isDetect = true;
-		dlib::full_object_detection shape;
-		shape = sp(img, dets[0]);
-		face_features.clear();
-		
-		for (int i = 0; i < shape.num_parts(); i++) {
-			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
-			face_features.push_back(point);
-		}
-		
+
 		//안쪽으로 땡김
 		face_features_fixed.clear();
 		for (int i = 0; i < face_features.size(); i++) {
@@ -268,14 +253,6 @@ void UserData::Track_face() {
 			mouth += face_inlier[i];
 		}
 		mouth /= 7.f; // 입의 평균
-		
-		
-
-		glm::vec3 pos= { 0.f, 0.f, 0.f };
-		for (int i = 31; i <= 35; i++) {
-			pos += face_inlier[i];
-		}
-		pos /= 5.f;
 
 		glm::vec3 ri_li = righteyes - lefteyes;
 		glm::vec3 mth_li = mouth - lefteyes;
@@ -302,35 +279,21 @@ void UserData::Track_face() {
 
 	}
 	else {
+		Console_msg.push_back("fail to detect");
+		isFindFace = false;
 		isDetect = false;
 	}
 
 }
-
 
 void UserData::Capture_Point() {
 	dlib::array2d<dlib::rgb_pixel> img;
 
 	cv::Mat frame2(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
 	dlib::assign_image(img, dlib::cv_image<dlib::bgr_pixel>(frame2));
-	// Make the image larger so we can detect small faces.
-	//pyramid_up(img);
 
-	// Now tell the face detector to give us a list of bounding boxes
-	// around all the faces in the image.
-	std::vector<dlib::rectangle> dets = detector(img);
-	//std::cout << "Number of faces detected: " << dets.size() << std::endl;
-
-	if (dets.size() > 0) {
+	if (get2DFaceFeaturePoints(img, face_features)) {
 		isDetect = true;
-		dlib::full_object_detection shape;
-		shape = sp(img, dets[0]);
-		face_features.clear();
-
-		for (int i = 0; i < shape.num_parts(); i++) {
-			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
-			face_features.push_back(point);
-		}
 
 		//안쪽으로 땡김
 		face_features_fixed.clear();
@@ -372,12 +335,6 @@ void UserData::Capture_Point() {
 		}
 		mouth /= 7.f; // 입의 평균
 
-		init_pos = { 0.f, 0.f, 0.f };
-		for (int i = 31; i <= 35; i++) {
-			init_pos += face_inlier[i];
-		}
-		init_pos /= 5.f;
-
 		glm::vec3 ri_li = righteyes - lefteyes;
 		glm::vec3 mth_li = mouth - lefteyes;
 		glm::vec3 norm = glm::normalize(glm::cross(mth_li, ri_li)); // 눈에서 입까지의 평면 - 법선벡터
@@ -391,80 +348,7 @@ void UserData::Capture_Point() {
 		glm::vec3 nose = face_inlier[30]; //코 끝
 		
 		init_nose = nose; // 법선벡터 저장
-		
-		face_plane.clear();
-
-
-
-		//코 끝을 지나는 평면상으로 얼굴의 모든 특징점을 올린다
-		//평면의 Normal Vector 를 축으로 하여 코 -> 각 특징점의 Vector를 회전
-		//printf("Face Inlier\n");
-		for (int i = 0; i < face_inlier.size(); i++) {
-			// printf("X: %d, Y: %d\n", face_inlier[i].x, face_inlier[i].y);
-
-			if (i == 30) {
-				face_plane.push_back(face_inlier[30]);
-				continue;
-			}
-
-			glm::vec3 a = face_inlier[i] - face_inlier[30]; //코 -> 특징점 Vector
-			float b_size = abs(glm::dot(norm, a)); //음수로 나오는 문제 -> 절대값 취해서 양수로 바꿔줌.
-			//printf("b_size: %f\n", b_size);
-			glm::vec3 b = b_size * norm; //평면의 Normal Vector와 같은 방향이면서, 평면과 특징점 사이의 거리만큼의 크기를 갖는 Vector
-			glm::vec3 c = glm::normalize(a + b); //a Vector를 평면상에 정사영시킴
-			glm::vec3 d = glm::length(a) * c; // a Vector의 길이를 곱해줌
-			glm::vec3 od = face_inlier[30] + d; // 카메라에서 평면상의 점 까지의 Vector
-			face_plane.push_back(od);
-
-		}
-		face_tex_coord_buf.clear();
-		float xmax = -10000.f;
-		float ymax = -10000.f;
-		float xmin = 10000.f;
-		float ymin = 10000.f;;
-
-		//코 끝의 좌표는 (1, 1)로 확인됨
-		//Depth 정보(?)를 얻어오지 못하는 경우 Nan으로 표시됨.
-		for (int i = 0; i < face_plane.size(); i++) {
-			glm::vec3 v = face_plane[i] - nose;
-			glm::vec3 vn = glm::normalize(glm::cross(horiaxis, v));
-			float theta = glm::acos(glm::dot(v, horiaxis) / glm::length(v));
-			float xcoord = 0.f;
-			float ycoord = 0.f;
-
-			if (i == 30) {
-				xcoord = 0.f;
-				ycoord = 0.f;
-			}
-			else if (glm::acos(glm::dot(vn, norm)) <= glm::pi<float>() / 2.f) {
-				xcoord = glm::length(v) * glm::cos(theta);
-				ycoord = -glm::length(v) * glm::sin(theta);
-			}
-			else {
-				xcoord = glm::length(v) * glm::cos(theta);
-				ycoord = glm::length(v) * glm::sin(theta);
-			}
-
-
-			if (xmax < xcoord) {
-				xmax = xcoord;
-			}
-			if (ymax < ycoord) {
-				ymax = ycoord;
-			}
-			if (xmin > xcoord) {
-				xmin = xcoord;
-			}
-			if (ymin > ycoord) {
-				ymin = ycoord;
-			}
-			face_tex_coord_buf.push_back(glm::vec2(xcoord, ycoord));
-		}
-
-		for (int i = 0; i < face_tex_coord_buf.size(); i++) {
-			face_tex_coord_buf[i].x = (face_tex_coord_buf[i].x - xmin) / (xmax + glm::abs(xmin));
-			face_tex_coord_buf[i].y = (face_tex_coord_buf[i].y - ymin) / (ymax + glm::abs(ymin));
-		}
+		makeFaceTextureCoordinate(face_inlier, face_tex_coord_buf);
 	}
 	else {
 		isDetect = false;
@@ -494,17 +378,56 @@ void UserData::Update_RealSense() {
 
 	glm::vec3 tv;
 	glm::vec2 tc;
-	for (int i = 0; i < int(points.size()); i++) {
-		if (vertices[i].z == 0) continue;
-		tv.x = vertices[i].x;
-		tv.y = vertices[i].y;
-		tv.z = vertices[i].z;
-		depth_points.emplace_back(tv);
 
-		tc.x = texcoord[i].u;
-		tc.y = texcoord[i].v;
-		depth_texcoords.push_back(tc);
-	} 
+	if (isFindFace) {
+		float minx = 1000.f;
+		float maxx = -1000.f;
+		float miny = 10000.f;
+		float maxy = -1000.f;
+		
+		std::vector<glm::vec4> face_temp;
+		face_temp.clear();
+		for (int i = 0; i < face_3D_final.size(); i++)
+			face_temp.push_back(glm::vec4(face_3D_final[i], 1.f));
+
+		for (int i = 0; i < face_3D_final.size(); i++) {
+			if (minx > (TM * face_temp[i]).x)
+				minx = (TM * face_temp[i]).x;
+			if (maxx < (TM * face_temp[i]).x)
+				maxx = (TM * face_temp[i]).x;
+			if (miny > (TM * face_temp[i]).y)
+				miny = (TM * face_temp[i]).y;
+			if (maxy < (TM * face_temp[i]).y)
+				maxy = (TM * face_temp[i]).y;
+		}
+		for (int i = 0; i < int(points.size()); i++) {
+			if (vertices[i].z == 0) continue;
+			if ((maxx >= vertices[i].x && vertices[i].x >= minx ) && (maxy >= vertices[i].y && vertices[i].y >= miny)) {
+				tv.x = vertices[i].x;
+				tv.y = vertices[i].y;
+				tv.z = vertices[i].z;
+				depth_points.emplace_back(tv);
+
+				tc.x = texcoord[i].u;
+				tc.y = texcoord[i].v;
+				depth_texcoords.push_back(tc);
+			}
+		}
+	}
+	else {
+		for (int i = 0; i < int(points.size()); i++) {
+			if (vertices[i].z == 0) continue;
+			tv.x = vertices[i].x;
+			tv.y = vertices[i].y;
+			tv.z = vertices[i].z;
+			depth_points.emplace_back(tv);
+
+			tc.x = texcoord[i].u;
+			tc.y = texcoord[i].v;
+			depth_texcoords.push_back(tc);
+		}
+	}
+
 
 	VertexBufferData(VAO_pointcloud, VBO_POS, depth_points.size(), sizeof(glm::vec3), depth_points.data(), GL_STREAM_DRAW);
 	VertexBufferData(VAO_pointcloud, VBO_TEX, depth_texcoords.size(), sizeof(glm::vec2), depth_texcoords.data(), GL_STREAM_DRAW);
@@ -557,24 +480,9 @@ void UserData::Update_dlib() {
 
 	cv::Mat frame1(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
 	dlib::assign_image(img, dlib::cv_image<dlib::bgr_pixel>(frame1));
-	// Make the image larger so we can detect small faces.
-	//pyramid_up(img);
-
-	// Now tell the face detector to give us a list of bounding boxes
-	// around all the faces in the image.
-	std::vector<dlib::rectangle> dets = detector(img);
-	//std::cout << "Number of faces detected: " << dets.size() << std::endl;
-
-	if (dets.size() > 0) {
+	
+	if (get2DFaceFeaturePoints(img, face_features)) {
 		isDetect = true;
-		dlib::full_object_detection shape;
-		shape = sp(img, dets[0]);
-		face_features.clear();
-
-		for (int i = 0; i < shape.num_parts(); i++) {
-			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
-			face_features.push_back(point);
-		}
 
 		std::vector<glm::vec3> face_features_gl;
 		face_features_gl.clear();
@@ -586,58 +494,12 @@ void UserData::Update_dlib() {
 		}
 		VertexBufferData(VAO_face_boundary, VBO_POS, face_features_gl.size(), sizeof(glm::vec3), face_features_gl.data(), GL_STREAM_DRAW);
 
-		// Read in the image.
-		cv::Mat img(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
-
-		// Keep a copy around
-		cv::Mat img_orig = img.clone();
-
-		// Rectangle to be used with Subdiv2D
-		cv::Size size = img.size();
-		cv::Rect rect(0, 0, size.width, size.height);
-
-		// Create an instance of Subdiv2D
-		cv::Subdiv2D subdiv(rect);
-		
-		// Create a vector of points.
-		std::vector<cv::Point2f> points;
-
-		points.clear();
-
-		// Get Points
-		for (int i = 0; i < face_features.size(); i++)
-			points.push_back(cv::Point2f(face_features[i].x, face_features[i].y));
-
-		// Insert points into subdiv
-		for (std::vector<cv::Point2f>::iterator it = points.begin(); it != points.end(); it++)
-		{
-			subdiv.insert(*it);
-		}
-		// Draw delaunay triangles
-		//draw_delaunay(img, subdiv, delaunay_color);
-		std::vector<cv::Vec6f> triangleList;
-		subdiv.getTriangleList(triangleList);
-		std::vector<cv::Point> pt(3);
-		face_features_mesh2D.clear();
-
-		for (size_t i = 0; i < triangleList.size(); i++)
-		{
-			cv::Vec6f t = triangleList[i];
-			pt[0] = cv::Point(cvRound(t[0]), cvRound(t[1]));
-			pt[2] = cv::Point(cvRound(t[2]), cvRound(t[3]));
-			pt[1] = cv::Point(cvRound(t[4]), cvRound(t[5]));
-
-			glm::vec2 temp[3];
-			for (int j = 0; j < 3; j += 1) {
-				temp[j].x = pt[j].x;
-				temp[j].y = pt[j].y;
-				face_features_mesh2D.push_back(temp[j]);
-			}
-		}
+		cv::Mat frame(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+		get2DMesh(frame, face_features, face_features_mesh2D);
 		//opengl좌표로 변환 (color frame과 같이 그려주는 mesh)
 		for (int i = 0; i < face_features_mesh2D.size(); i += 1) {
-			face_features_mesh2D[i].x = (face_features_mesh2D[i].x / (float)size.width - 0.5) * 2.f;
-			face_features_mesh2D[i].y = (face_features_mesh2D[i].y / (float)size.height - 0.5) * (-2.f);
+			face_features_mesh2D[i].x = (face_features_mesh2D[i].x / (float)realsense_tex.width - 0.5) * 2.f;
+			face_features_mesh2D[i].y = (face_features_mesh2D[i].y / (float)realsense_tex.height - 0.5) * (-2.f);
 		}
 
 		VertexBufferData(VAO_face_mesh2D, VBO_POS, face_features_mesh2D.size(), sizeof(glm::vec2), face_features_mesh2D.data(), GL_STREAM_DRAW);
@@ -646,83 +508,13 @@ void UserData::Update_dlib() {
 	else {
 		isDetect = false;
 	}
-
-
 }
 
 void UserData::Update_Mesh() {
-
 	// Read in the image.
-	cv::Mat img(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
-	
-	// Keep a copy around
-	cv::Mat img_orig = img.clone();
-
-	// Rectangle to be used with Subdiv2D
-	cv::Size size = img.size();
-	cv::Rect rect(0, 0, size.width, size.height);
-
-	// Create an instance of Subdiv2D
-	cv::Subdiv2D subdiv(rect);
-
-	// Create a vector of points.
-	std::vector<cv::Point2f> points;
-
-	points.clear();
-
-	// Get Points
-	for (int i = 0; i < face_features_fixed.size(); i++)
-		points.push_back(cv::Point2f(face_features_fixed[i].x, face_features_fixed[i].y));
-
-	// Insert points into subdiv
-	for (std::vector<cv::Point2f>::iterator it = points.begin(); it != points.end(); it++)
-	{
-		subdiv.insert(*it);
-	}
-	// Draw delaunay triangles
-	//draw_delaunay(img, subdiv, delaunay_color);
-	std::vector<cv::Vec6f> triangleList;
-	subdiv.getTriangleList(triangleList);
-	std::vector<cv::Point> pt(3);
-	face_features_mesh2D.clear();
-
-	for (size_t i = 0; i < triangleList.size(); i++)
-	{
-		cv::Vec6f t = triangleList[i];
-		pt[0] = cv::Point(cvRound(t[0]), cvRound(t[1]));
-		pt[2] = cv::Point(cvRound(t[2]), cvRound(t[3]));
-		pt[1] = cv::Point(cvRound(t[4]), cvRound(t[5]));
-
-		glm::vec2 temp[3];
-		for (int j = 0; j < 3; j += 1) {
-			temp[j].x = pt[j].x;
-			temp[j].y = pt[j].y;
-			face_features_mesh2D.push_back(temp[j]);
-		}
-	}
-	
-	face_features_mesh3D.clear();
-	for (int i = 0; i < face_features_mesh2D.size(); i++) {
-		float tp[3] = { 0.f, 0.f, 0.f };
-		const float pix[2] = { face_features_mesh2D[i].x, face_features_mesh2D[i].y };
-		rs2_deproject_pixel_to_point(tp, &realsense_intrinsics_color, pix, 2.f);
-		//float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(face_features[i].x * dw / cw, face_features[i].y * dh / ch);
-
-		// Apply extrinsics to the origi
-		float target[3];
-		rs2_transform_point_to_point(target, &extrinsics_color_to_depth, tp);
-		float uv[2] = { 0, 0 };
-		rs2_project_point_to_pixel(uv, &realsense_intrinsics_depth, target);
-
-		float pixel_distance_in_meters = static_cast<rs2::depth_frame>(depth).get_distance(uv[0], uv[1]);
-
-		float result[3];
-		rs2_deproject_pixel_to_point(result, &realsense_intrinsics_depth, uv, pixel_distance_in_meters);
-
-		glm::vec3 temp = { result[0], result[1], result[2] };
-		face_features_mesh3D.emplace_back(temp);
-	}
-
+	cv::Mat frame(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+	get2DMesh(frame, face_features_fixed, face_features_mesh2D);
+	transform_2Dto3D(face_features_mesh2D, face_features_mesh3D);
 	VertexBufferData(VAO_face_mesh3D, VBO_POS, face_features_mesh3D.size(), sizeof(glm::vec3), face_features_mesh3D.data(), GL_STREAM_DRAW);
 	VertexBufferData(VAO_face_mesh3D_paint, VBO_POS, face_features_mesh3D.size(), sizeof(glm::vec3), face_features_mesh3D.data(), GL_STREAM_DRAW);
 	
@@ -740,8 +532,8 @@ void UserData::Update_Mesh() {
 
 	//opengl좌표로 변환 (color frame과 같이 그려주는 mesh)
 	for (int i = 0; i < face_features_mesh2D.size(); i += 1) {
-		face_features_mesh2D[i].x = (face_features_mesh2D[i].x / (float)size.width - 0.5) * 2.f;
-		face_features_mesh2D[i].y = (face_features_mesh2D[i].y / (float)size.height - 0.5) * (-2.f);
+		face_features_mesh2D[i].x = (face_features_mesh2D[i].x / (float)realsense_tex.width - 0.5) * 2.f;
+		face_features_mesh2D[i].y = (face_features_mesh2D[i].y / (float)realsense_tex.height - 0.5) * (-2.f);
 	}
 
 	VertexBufferData(VAO_face_mesh2D, VBO_POS, face_features_mesh2D.size(), sizeof(glm::vec2), face_features_mesh2D.data(), GL_STREAM_DRAW);
@@ -810,6 +602,34 @@ void UserData::filterFace() {
 	}
 }
 
+bool UserData::filterFaceOutlier(std::vector<glm::vec3>& face, std::vector<glm::vec3>& face_inlier) {
+	bool check = true;
+	face_inlier.clear();
+	float avgFaceLength = 0.1f; //depth가 10cm이상 차이나면 얼굴이 아닌걸로 간주한다 
+	float avg = 0;
+	for (int i = 0; i < face.size(); i++) {
+		avg += face[i].z;
+	}
+	avg /= (float)face.size();
+	float maxz = avg + avgFaceLength;
+	float minz = avg - avgFaceLength;
+	if (minz <= 0.f)
+		minz = 0.01f;
+	
+	glm::vec3 zeroVec3(0.f, 0.f, 0.f);
+	for (int i = 0; i < face.size(); i++) {
+		if (maxz >= face[i].z && face[i].z >= minz) {
+			face_inlier.push_back(face[i]);
+		}
+		else {
+			face_inlier.push_back(zeroVec3);
+			check = false;
+		}
+	}
+
+	return check;
+}
+
 // Draw delaunay triangles
 void UserData::draw_delaunay(cv::Mat& img, cv::Subdiv2D& subdiv, cv::Scalar delaunay_color)
 {
@@ -862,6 +682,354 @@ void UserData::transform_2Dto3D(std::vector<glm::vec2>& point2D, std::vector<glm
 	}
 }
 
+bool UserData::get2DFaceFeaturePoints(dlib::array2d<dlib::rgb_pixel>& img, std::vector<glm::vec2>& result) {
+	std::vector<dlib::rectangle> dets = detector(img);
+	if (dets.size() > 0) {
+		//화면에 인식된 얼굴 중에서 가장 큰 얼굴을 찾는다.
+		float max = 0.f;
+		int fidx = 0;
+		for (int i = 0; i < dets.size(); i++) {
+			dlib::full_object_detection shape;
+			shape = sp(img, dets[0]);
+
+			std::vector<glm::vec2> temp;
+			temp.clear();
+			for (int i = 0; i < shape.num_parts(); i++) {
+				glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
+				temp.push_back(point);
+			}
+			if (max < abs(temp[0].x - temp[16].x)) {
+				fidx = i;
+			}
+		}
+
+		dlib::full_object_detection shape;
+		shape = sp(img, dets[fidx]);
+		result.clear();
+
+		for (int i = 0; i < shape.num_parts(); i++) {
+			glm::vec2 point = { shape.part(i).x(), shape.part(i).y() };
+			result.push_back(point);
+		}
+		return true;
+	}
+
+	return false;
+}
+
+void UserData::get2DMesh(cv::Mat& img,std::vector<glm::vec2>& features, std::vector<glm::vec2>& result) {
+	// Keep a copy around
+	cv::Mat img_orig = img.clone();
+
+	// Rectangle to be used with Subdiv2D
+	cv::Size size = img.size();
+	cv::Rect rect(0, 0, size.width, size.height);
+
+	// Create an instance of Subdiv2D
+	cv::Subdiv2D subdiv(rect);
+
+	// Create a vector of points.
+	std::vector<cv::Point2f> points;
+
+	points.clear();
+
+	// Get Points
+	for (int i = 0; i < features.size(); i++)
+		points.push_back(cv::Point2f(features[i].x, features[i].y));
+
+	// Insert points into subdiv
+	for (std::vector<cv::Point2f>::iterator it = points.begin(); it != points.end(); it++)
+	{
+		subdiv.insert(*it);
+	}
+	// Draw delaunay triangles
+	//draw_delaunay(img, subdiv, delaunay_color);
+	std::vector<cv::Vec6f> triangleList;
+	subdiv.getTriangleList(triangleList);
+	std::vector<cv::Point> pt(3);
+	result.clear();
+
+	for (size_t i = 0; i < triangleList.size(); i++)
+	{
+		cv::Vec6f t = triangleList[i];
+		pt[0] = cv::Point(cvRound(t[0]), cvRound(t[1]));
+		pt[2] = cv::Point(cvRound(t[2]), cvRound(t[3]));
+		pt[1] = cv::Point(cvRound(t[4]), cvRound(t[5]));
+
+		glm::vec2 temp[3];
+		for (int j = 0; j < 3; j += 1) {
+			temp[j].x = pt[j].x;
+			temp[j].y = pt[j].y;
+			result.push_back(temp[j]);
+		}
+	}
+
+}
+
+void UserData::FindFirstFace(){
+	dlib::array2d<dlib::rgb_pixel> img;
+	cv::Mat frame(cv::Size(realsense_tex.width, realsense_tex.height), CV_8UC3, (void*)color.get_data(), cv::Mat::AUTO_STEP);
+	dlib::assign_image(img, dlib::cv_image<dlib::bgr_pixel>(frame));
+
+	std::vector<glm::vec2> face;
+	face.clear();
+
+	face_3D_final.clear();
+
+	if (get2DFaceFeaturePoints(img, face)) {
+		
+		//인식된 가장 화면에 크게 찍히는 얼굴을 찾아서 리턴한다
+		//그 얼굴이 정면모습에 가까울때 시작
+		//카메라 정면을 보고있지 않으면 다시 얼굴탐색
+		float epsilon = 3.f;
+		if (abs(glm::distance(face[0], face[36]) - glm::distance(face[16], face[45])) > epsilon) {
+			return;
+		}
+
+		//얼굴이 카메라와 수평하지 않으면 다시 얼굴탐색
+		float epsilon2 = 0.1f;
+		if (abs((face[16].y - face[0].y) / (face[16].x - face[0].x)) >= epsilon2) {
+			return;
+		}
+		
+		//찾은 얼굴을 안쪽으로 땡긴다
+		for (int i = 0; i < face.size(); i++) {
+			face[i] = (glm::vec2(face[i].x - 15.f, face[i].y));
+		}
+
+		for (int i = 0; i < face.size(); i++) {
+			if (0 <= i && i <= 5) {
+				face[i].x += 15.f;
+			}
+			else if (6 <= i && i <= 10) {
+				face[i].y -= 15.f;
+			}
+			else if (11 <= i && i <= 16) {
+				face[i].x -= 15.f;
+			}
+		}
+
+		std::vector<glm::vec2> face_mesh2D;
+		std::vector<glm::vec3> face_mesh3D;
+		face_mesh2D.clear();
+		face_mesh3D.clear();
+		get2DMesh(frame, face, face_mesh2D);
+
+		face_idx.clear();
+		//mesh로 만든 점이 원래 특징점에서 어디에 해당하는 점인지 탐색해놈
+		for (int i = 0; i < face_mesh2D.size(); i++) {
+			for (int j = 0; j < face.size(); j++) {
+				if(face[j] == face_mesh2D[i]){
+					face_idx.push_back(j);
+					break;
+				}
+			}
+		}
+		//mesh2D에 들어있는 점들을 3D로 deprojection한다
+		transform_2Dto3D(face_mesh2D, face_mesh3D);
+		
+		
+		//deprojection한 후 분명히 날아간 점들이 존재한다.
+		face_mesh3D_final.clear();
+		filterFaceOutlier(face_mesh3D, face_mesh3D_final);
+
+		//face_3Dmesh에서 특징점 68개의 좌표만 따로 뽑아서 저장
+		face_3D_final.resize(68);
+		for (int i = 0; i < face_mesh3D_final.size(); i++) {
+			face_3D_final[face_idx[i]] = face_mesh3D_final[i];
+		}
+
+		//얼굴 반쪽을 찾았으면 다머지 반쪽은 대칭해서 채우고 tracking시작
+		bool fl = true;
+		bool fr = true;
+		glm::vec3 zeroVec3(0.f, 0.f, 0.f);
+		for (int i = 0; i <= 8; i++) {
+			if (face_3D_final[i] == zeroVec3) {
+				fl = false;
+				break;
+			}
+		}
+		for (int i = 8; i <= 16; i++) {
+			if (face_3D_final[i] == zeroVec3) {
+				fr = false;
+				break;
+			}
+		}
+
+		//만약 반쪽을 못찾았으면 다시 얼굴탐색
+		if (!fl && !fr) {
+			return;
+		}
+		else { //반쪽은 찾았으므로 나머지 반쪽을 대칭해서 넣음
+			if (fl) {
+				for (int i = 0; i <= 7; i++) {
+					face_3D_final[16 - i].x = face_3D_final[30].x + (abs(face_3D_final[30].x - face_3D_final[i].x));
+					face_3D_final[16 - i].y = face_3D_final[30].y + (face_3D_final[i].y - face_3D_final[30].y);
+					face_3D_final[16 - i].z = face_3D_final[i].z;
+				}
+			}
+			else if (fr) {
+				for (int i = 0; i <= 7; i++) {
+					face_3D_final[i].x = face_3D_final[30].x - (abs(face_3D_final[30].x - face_3D_final[16 - i].x));
+					face_3D_final[i].y = face_3D_final[30].y + (face_3D_final[16 - i].y - face_3D_final[30].y);
+					face_3D_final[i].z = face_3D_final[16 - i].z;
+				}
+			}
+		}
+
+		//눈, 코중심, 입 눈썹을 멀쩡하게 찾았는지 검사
+		bool nm = true;
+		for (int i = 17; i <= 67; i++) {
+			if (face_3D_final[i] == zeroVec3) {
+				nm = false;
+				break;
+			}
+		}
+		if (face_3D_final[30] == zeroVec3)
+			nm = false;
+		
+		//눈, 코중심, 입이 멀쩡하면 눈,입의 점들을 이용해서 좌표축을 세운 후 tracking 시작
+		if (nm) {
+			Console_msg.push_back("detect face");
+			//for (int i = 0; i < face_3D_final.size(); i++)
+			//	printf("%dth : %f, %f, %f\n", i, face_3D_final[i].x, face_3D_final[i].y, face_3D_final[i].z);
+
+			glm::vec3 lefteye(0.f, 0.f, 0.f);
+			glm::vec3 righteye(0.f, 0.f, 0.f);
+			glm::vec3 mouth(0.f, 0.f, 0.f);
+		
+			for (int i = 36; i <= 41; i++) { //lefteye
+				lefteye += face_3D_final[i];
+			}
+			lefteye /= 6.f;
+
+			for (int i = 42; i <= 47; i++) { //righteye
+				righteye += face_3D_final[i];
+			}
+			righteye /= 6.f;
+
+			for (int i = 48; i <= 54; i++) { // mouth
+				mouth += face_3D_final[i];
+			}
+			mouth /= 7.f;
+
+			glm::vec3 ri_li = righteye - lefteye;
+			glm::vec3 mth_li = mouth - lefteye;
+			glm::vec3 norm = glm::normalize(glm::cross(mth_li, ri_li)); // 눈에서 입까지의 평면 - 법선벡터
+			glm::vec3 horiaxis = glm::normalize(ri_li);
+			glm::vec3 vertaxis = glm::normalize(glm::cross(norm, horiaxis)); // 기저 벡터
+
+			init_norm = norm;
+			init_hori = horiaxis;
+			init_vert = vertaxis;
+
+			glm::vec3 nose = face_3D_final[30]; //코 끝
+
+			init_nose = nose;
+
+			for (int i = 0; i < face_mesh3D_final.size(); i++) {
+				face_mesh3D_final[i] = face_3D_final[face_idx[i]];
+			}
+			std::vector<glm::vec2> texcoord;
+			texcoord.clear();
+			makeFaceTextureCoordinate(face_3D_final, texcoord);
+			std::vector<glm::vec2> face_texcoord;
+			face_texcoord.clear();
+			for (int i = 0; i < face_mesh3D_final.size(); i++) {
+				face_mesh3D_final[i] = face_3D_final[face_idx[i]];
+				face_texcoord.push_back(texcoord[face_idx[i]]);
+			}
+
+			VertexBufferData(VAO_face_mesh3D, VBO_POS, face_mesh3D_final.size(), sizeof(glm::vec3), face_mesh3D_final.data(), GL_STREAM_DRAW);
+			VertexBufferData(VAO_face_mesh3D_paint, VBO_POS, face_mesh3D_final.size(), sizeof(glm::vec3), face_mesh3D_final.data(), GL_STREAM_DRAW);
+
+			VertexBufferData(VAO_face_mesh3D_paint, VBO_TEX, face_texcoord.size(), sizeof(glm::vec2), face_texcoord.data(), GL_STREAM_DRAW);
+
+			isFindFace = true;
+		}
+		//만약 눈, 코중심, 입의 점들중 날아간 것이 존재하면 FindFirstFace를 다시 수행한다
+		else {
+			isFindFace = false;
+		}
+	}
+	else {
+		isFindFace = false;
+	}
+}
+
+void UserData::makeFaceTextureCoordinate(std::vector<glm::vec3>& face, std::vector<glm::vec2>& texcoord) {
+	std::vector<glm::vec3> face_plane;
+	face_plane.clear();
+	//코 끝을 지나는 평면상으로 얼굴의 모든 특징점을 올린다
+	//평면의 Normal Vector 를 축으로 하여 코 -> 각 특징점의 Vector를 회전
+	//printf("Face Inlier\n");
+	for (int i = 0; i < face.size(); i++) {
+		if (i == 30) {
+			face_plane.push_back(face[30]);
+			continue;
+		}
+
+		glm::vec3 a = face[i] - face[30]; //코 -> 특징점 Vector
+		float b_size = abs(glm::dot(init_norm, a)); //음수로 나오는 문제 -> 절대값 취해서 양수로 바꿔줌.
+		//printf("b_size: %f\n", b_size);
+		glm::vec3 b = b_size * init_norm; //평면의 Normal Vector와 같은 방향이면서, 평면과 특징점 사이의 거리만큼의 크기를 갖는 Vector
+		glm::vec3 c = glm::normalize(a + b); //a Vector를 평면상에 정사영시킴
+		glm::vec3 d = glm::length(a) * c; // a Vector의 길이를 곱해줌
+		glm::vec3 od = face[30] + d; // 카메라에서 평면상의 점 까지의 Vector
+		face_plane.push_back(od);
+
+	}
+	texcoord.clear();
+	float xmax = -10000.f;
+	float ymax = -10000.f;
+	float xmin = 10000.f;
+	float ymin = 10000.f;;
+
+	//코 끝의 좌표는 (1, 1)로 확인됨
+	//Depth 정보(?)를 얻어오지 못하는 경우 Nan으로 표시됨.
+	for (int i = 0; i < face_plane.size(); i++) {
+		glm::vec3 v = face_plane[i] - init_nose;
+		glm::vec3 vn = glm::normalize(glm::cross(init_hori, v));
+		float theta = glm::acos(glm::dot(v, init_hori) / glm::length(v));
+		float xcoord = 0.f;
+		float ycoord = 0.f;
+
+		if (i == 30) {
+			xcoord = 0.f;
+			ycoord = 0.f;
+		}
+		else if (glm::acos(glm::dot(vn, init_norm)) <= glm::pi<float>() / 2.f) {
+			xcoord = glm::length(v) * glm::cos(theta);
+			ycoord = -glm::length(v) * glm::sin(theta);
+		}
+		else {
+			xcoord = glm::length(v) * glm::cos(theta);
+			ycoord = glm::length(v) * glm::sin(theta);
+		}
+
+
+		if (xmax < xcoord) {
+			xmax = xcoord;
+		}
+		if (ymax < ycoord) {
+			ymax = ycoord;
+		}
+		if (xmin > xcoord) {
+			xmin = xcoord;
+		}
+		if (ymin > ycoord) {
+			ymin = ycoord;
+		}
+		texcoord.push_back(glm::vec2(xcoord, ycoord));
+	}
+
+	for (int i = 0; i < texcoord.size(); i++) {
+		texcoord[i].x = (texcoord[i].x - xmin) / (xmax + glm::abs(xmin));
+		texcoord[i].y = (texcoord[i].y - ymin) / (ymax + glm::abs(ymin));
+	}
+}
+
+//////GUI
 void UserData::Update_ImGui_MainMenu() {
 	const ImVec2 padding(width, height/50.f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, padding);

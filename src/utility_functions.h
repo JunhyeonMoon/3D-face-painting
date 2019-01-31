@@ -48,6 +48,11 @@ struct texture_info {
 	GLuint tex;
 };
 
+struct face_index {
+	int idx;
+	bool isFind;
+};
+
 struct Program {
 	GLuint program;
 	std::map<GLenum, GLuint> shaders;

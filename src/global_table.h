@@ -13,6 +13,9 @@ struct UserData : public AppBase {
 	UserData() {}
 	//////전역변수 대신 이곳에 변수를 선언한다.
 	// Application states
+	bool isStart = false;
+	bool isFindFace = false;
+
 	int width, height;
 	float aspectRatio;
 	glm::mat4 VP;
@@ -36,11 +39,12 @@ struct UserData : public AppBase {
 	std::vector<glm::vec2> face_features_mesh2D;
 	std::vector<glm::vec2> face_features_mesh2D_update;
 	std::vector<glm::vec3> face_features_mesh3D;
-	std::vector<glm::vec3> face_plane;
-	std::vector<glm::vec2> face_tex_coordinate;
+	std::vector<glm::vec3> face_mesh3D_final;
+	std::vector<glm::vec3> face_3D_final;
+	std::vector<int> face_idx;
 	
+	std::vector<glm::vec2> face_tex_coordinate;
 	std::vector<glm::vec2> face_tex_coord_buf; // capture해서 저장된 feature point --> mesh 생성
-	glm::vec3 init_pos; // 처음 모든 점의 평균위치
 	glm::vec3 init_nose; // 처음 코
 	glm::vec3 init_vert;
 	glm::vec3 init_hori;
@@ -131,6 +135,7 @@ struct UserData : public AppBase {
 	void Update_Mesh();
 
 	void Track_face();
+	void Track_face2();
 	void Capture_Point();
 
 	void Cleanup_OpenGL();
@@ -139,11 +144,15 @@ struct UserData : public AppBase {
 
 	void filterFace();
 
-	// Draw a single point
-	void draw_point(cv::Mat& img, cv::Point2f fp, cv::Scalar color);
 	// Draw delaunay triangles
 	void draw_delaunay(cv::Mat& img, cv::Subdiv2D& subdiv, cv::Scalar delaunay_color);
 	void transform_2Dto3D(std::vector<glm::vec2>&, std::vector<glm::vec3>&);
 
+	void FindFirstFace();
+	void FindAllFace();
+	bool get2DFaceFeaturePoints(dlib::array2d<dlib::rgb_pixel>& img, std::vector<glm::vec2>& result);
+	void get2DMesh(cv::Mat& img, std::vector<glm::vec2>& points, std::vector<glm::vec2>& result);
+	bool filterFaceOutlier(std::vector<glm::vec3>& face, std::vector<glm::vec3>& face_inlier);
+	void makeFaceTextureCoordinate(std::vector<glm::vec3>& face, std::vector<glm::vec2>& texcoord);
 };
 

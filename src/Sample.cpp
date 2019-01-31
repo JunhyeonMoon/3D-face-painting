@@ -19,11 +19,22 @@ struct App : public UserData {
 	}
 
 	void update(float time_elapsed) override {
+		//Update_RealSense();
+		//Update_ImGui();
+		//Update_dlib();
+		//if (isDetect && isTrack) {
+		//	Track_face();
+		//}
+
 		Update_RealSense();
 		Update_ImGui();
-		Update_dlib();
-		if (isDetect && isTrack) {
-			Track_face();
+		if (isStart) {
+			if (!isFindFace) {
+				FindFirstFace();
+			}
+			else {
+				Track_face();
+			}
 		}
 		trackball.update(time_elapsed);
 		VP = trackball.projection_matrix()*trackball.view_matrix();
@@ -31,29 +42,36 @@ struct App : public UserData {
 	}
 
 	void render(float time_elapsed) override {
-		glClearColor(1.f, 1.f, 1.f, 1.f);
-		//glClearColor(0.f, 0.f, 0.f, 1.f);
+		//glClearColor(1.f, 1.f, 1.f, 1.f);
+		glClearColor(0.f, 0.f, 0.f, 1.f);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		bool c = isColor || isColor_FeaturePoints || isColor_Mesh;
 		bool d = isDepth_PointCloud || isDepth_FeaturePoints || isDepth_Mesh || isDepth_Paint;
 
-		if (c && d) {
-			setLeft();
-			render2D();
-			setRight();
-			render3D();
-		}
-		else if(c) {
-			setCenter();
-			render2D();
-		}
-		else {
-			setCenter();
-			render3D();
-		}	
+		//if (c && d) {
+		//	setLeft();
+		//	render2D();
+		//	setRight();
+		//	render3D();
+		//}
+		//else if(c) {
+		//	setCenter();
+		//	render2D();
+		//}
+		//else {
+		//	setCenter();
+		//	render3D();
+		//}
 
+		setCenter();
+		render_pointcloud();
+		if (isFindFace) {
+			render_face_mesh3D();
+			if (isDepth_Paint)
+				render_face_mesh3D_paint();
+		}
 		render_ImGui();
 	}
 
@@ -308,6 +326,8 @@ struct App : public UserData {
 			case GLFW_KEY_O:
 			case GLFW_KEY_P:
 			case GLFW_KEY_S:
+				isStart = !isStart;
+				break;
 			case GLFW_KEY_T:
 			case GLFW_KEY_U:
 			case GLFW_KEY_V:
