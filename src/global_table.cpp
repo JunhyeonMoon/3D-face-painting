@@ -12,13 +12,13 @@ void UserData::Init_OpenGL(int width, int height) {
 	tex1.tex = CreateTexture2D(tex1.width, tex1.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex1.data);
 	stbi_image_free(tex1.data);
 
-	//tex2.data = stbi_load("image1.png", &tex2.width, &tex2.height, &tex2.n, 4);
-	//tex2.tex = CreateTexture2D(tex2.width, tex2.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex2.data);
-	//stbi_image_free(tex2.data);
-	//
-	//tex3.data = stbi_load("hi.png", &tex3.width, &tex3.height, &tex3.n, 4);
-	//tex3.tex = CreateTexture2D(tex3.width, tex3.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex3.data);
-	//stbi_image_free(tex3.data);
+	tex2.data = stbi_load("KakaoTalk_20190131_191843858.png", &tex2.width, &tex2.height, &tex2.n, 4);
+	tex2.tex = CreateTexture2D(tex2.width, tex2.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex2.data);
+	stbi_image_free(tex2.data);
+	
+	tex3.data = stbi_load("anonymous_mask_PNG11.png", &tex3.width, &tex3.height, &tex3.n, 4);
+	tex3.tex = CreateTexture2D(tex3.width, tex3.height, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, tex3.data);
+	stbi_image_free(tex3.data);
 
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -546,6 +546,9 @@ void UserData::Update_ImGui() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 	
+	ImFont* font = ImGui::GetFont();
+	font->Scale = 2.f;
+	ImGui::PushFont(font);
 	Update_ImGui_MainMenu();
 	Update_ImGui_SideBar();
 	Update_ImGui_Console();
@@ -904,7 +907,7 @@ void UserData::Update_ImGui_SideBar() {
 			}
 		}
 		
-		if (ImGui::Checkbox("Feature points", &isColor_FeaturePoints)) {
+		if (ImGui::Checkbox("Features", &isColor_FeaturePoints)) {
 			if (isColor_FeaturePoints) {
 				Console_msg.push_back("Start color frame feature points");
 			}
@@ -931,7 +934,7 @@ void UserData::Update_ImGui_SideBar() {
 				Console_msg.push_back("Stop depth frame pointcloud");
 			}
 		}
-		if (ImGui::Checkbox("Feature points", &isDepth_FeaturePoints)) {
+		if (ImGui::Checkbox("Features", &isDepth_FeaturePoints)) {
 			if (isDepth_FeaturePoints) {
 				Console_msg.push_back("Start depth frame feature points");
 			}
@@ -948,8 +951,14 @@ void UserData::Update_ImGui_SideBar() {
 			}
 		}
 		if (ImGui::TreeNode("Painting")) {
-			if (ImGui::Checkbox("texture1", &isDepth_Paint)) { //클릭되면 true 리턴
+			if (ImGui::Checkbox("comedy", &isTex1)) { //클릭되면 true 리턴
 				
+			}
+			if (ImGui::Checkbox("cute eye", &isTex2)) { //클릭되면 true 리턴
+
+			}
+			if (ImGui::Checkbox("Mask", &isTex3)) { //클릭되면 true 리턴
+
 			}
 		}
 	}

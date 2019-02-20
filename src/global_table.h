@@ -54,7 +54,9 @@ struct UserData : public AppBase {
 	texture_info tex1;
 	texture_info tex2;
 	texture_info tex3;
-
+	bool isTex1 = false;
+	bool isTex2 = false;
+	bool isTex3 = false;
 
 	// OpenGL Objects
 	Program program_pointcloud;

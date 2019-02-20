@@ -36,6 +36,11 @@ struct App : public UserData {
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		if (isTex1 || isTex2 || isTex3)
+			isDepth_Paint = true;
+		else
+			isDepth_Paint = false;
+
 		bool c = isColor || isColor_FeaturePoints || isColor_Mesh;
 		bool d = isDepth_PointCloud || isDepth_FeaturePoints || isDepth_Mesh || isDepth_Paint;
 
@@ -233,8 +238,17 @@ struct App : public UserData {
 		glUseProgram(program_face_mesh3D_paint);
 		glBindVertexArray(VAO_face_mesh3D_paint);
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, tex1.tex);
 
+		if (isTex1) {
+			glBindTexture(GL_TEXTURE_2D, tex1.tex);
+		}
+		else if (isTex2) {
+			glBindTexture(GL_TEXTURE_2D, tex2.tex);
+		}
+		else if (isTex3) {
+			glBindTexture(GL_TEXTURE_2D, tex3.tex);
+		}
+		
 		UniformMatrix4fv(program_face_mesh3D_paint, "MVP", 1, GL_FALSE, &VP[0][0]);
 		UniformMatrix4fv(program_face_mesh3D_paint, "TM", 1, GL_FALSE, &TM[0][0]);
 		glDrawArrays(GL_TRIANGLES, 0, VAO_face_mesh3D_paint.count);
